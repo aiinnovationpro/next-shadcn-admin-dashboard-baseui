@@ -46,7 +46,7 @@ export default async function Page({ searchParams }: PageProps) {
             <ToggleGroupItem
               value="grid"
               nativeButton={false}
-              render={<Link href="?view=grid" replace scroll={false} />}
+              render={<Link href="?view=grid" prefetch={false} replace scroll={false} />}
             >
               <Grid2X2 />
               Grid View
@@ -54,7 +54,7 @@ export default async function Page({ searchParams }: PageProps) {
             <ToggleGroupItem
               value="list"
               nativeButton={false}
-              render={<Link href="?view=list" replace scroll={false} />}
+              render={<Link href="?view=list" prefetch={false} replace scroll={false} />}
             >
               <List />
               List View
