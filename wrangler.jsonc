@@ -1,0 +1,8 @@
+{
+  "name": "desk-shell-spike",
+  "main": "vinext/server/fetch-handler",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "assets": { "binding": "ASSETS", "not_found_handling": "none" }
+}
