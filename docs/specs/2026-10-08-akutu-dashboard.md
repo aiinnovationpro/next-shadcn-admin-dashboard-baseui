@@ -174,6 +174,6 @@ Rollout in three phases:
 ## Further Notes
 
 - **Where it lives:** in its own repo cloned from Ebenezer's fork of the template, outside iCloud. Akutu_2 stays the planning workspace; the app is built and run in its own repo, in line with how other project work is kept out of Akutu_2.
-- **iCloud offloading is the most likely silent failure.** If macOS "Optimize Mac Storage" offloads the context files, the app cannot read them. Mark the Akutu_2 context folder "Keep Downloaded" in Finder before phase 1. The reader's "unreadable" state is the backstop, not the fix.
+- **iCloud offloading is the most likely silent failure.** If macOS "Optimize Mac Storage" offloads the context files, the app cannot read them. The whole Obsidian folder that holds Akutu_2 is already marked "Keep Downloaded" (Ebenezer, Thu Oct 8, 2026), and no offloaded placeholder files were found in it that day. The reader's "unreadable" state stays as the backstop in case that setting is ever lost.
 - **Volume is the reason for the table views.** On Thu Oct 8, 2026 PROJECTS.md had 21 active project blocks, above the 12 to 15 the workspace's design notes name as the comfortable limit for one workspace. The app makes that volume readable; it does not fix it.
 - **Prior art inside Akutu_2:** the render contract defines today's behaviour (empty sections, source ages, no ranking, language) and is the reference for what "the same as the old dashboard" means during parity.
