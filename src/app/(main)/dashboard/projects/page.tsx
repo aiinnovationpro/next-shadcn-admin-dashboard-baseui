@@ -2,6 +2,7 @@ import { getSnapshot } from "@/lib/workspace/snapshot";
 
 import { WorkspacePage } from "../_workspace/workspace-page";
 import { ProjectsTable } from "./_components/projects-table";
+import { RecentJournal } from "./_components/recent-journal";
 
 export default async function Page() {
   const snap = await getSnapshot();
@@ -12,6 +13,7 @@ export default async function Page() {
   return (
     <WorkspacePage snap={snap} title="Projects" needs={["PROJECTS.md"]}>
       {snap.projects.length > 0 && <ProjectsTable projects={snap.projects} openTasks={openTasks} />}
+      <RecentJournal journal={snap.journal} source={snap.sources.find((s) => s.name === "JOURNAL.md")} />
     </WorkspacePage>
   );
 }
