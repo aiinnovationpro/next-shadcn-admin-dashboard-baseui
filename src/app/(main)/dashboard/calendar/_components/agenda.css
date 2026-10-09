@@ -22,6 +22,7 @@
   @apply border-l-destructive;
 }
 
+/* No warning or amber token in globals.css (chart-3 turns green in dark mode), so a named Tailwind colour, per AGENTS.md. */
 .morning-agenda li.ev.p-amber {
   @apply border-l-amber-500;
 }
