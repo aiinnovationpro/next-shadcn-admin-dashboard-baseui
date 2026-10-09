@@ -19,7 +19,7 @@ export function RecentJournal({ journal, source }: { journal: JournalEntry[]; so
       <CardHeader>
         <CardTitle>Recent journal</CardTitle>
         <CardDescription>
-          The latest {journal.length === 1 ? "entry" : `${journal.length} entries`}, newest first.
+          {journal.length === 1 ? "One entry" : `${journal.length} entries`} from the last 14 days, newest first.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col divide-y">

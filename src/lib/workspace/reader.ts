@@ -78,7 +78,7 @@ export type Snapshot = {
   notUnderstood: NotUnderstood[];
   inventory: Inventory;
   morning: Morning;
-  journal: JournalEntry[]; // the newest entries, newest first
+  journal: JournalEntry[]; // entries from the last 14 days, newest first, at most 10
 };
 
 type Flag = (section: string, line: string) => void;
@@ -101,11 +101,12 @@ function readSource(root: string, name: string, now: Date): { source: Source; te
 }
 
 const JOURNAL_ENTRIES = 10;
+const JOURNAL_DAYS = 14; // an entry exactly this many days old is still kept
 
 // "## YYYY-MM-DD" opens an entry, "- " opens a bullet, an indented line continues it, "###" and "---" are ignored.
 // Anything else under an entry, and any "## " heading that is no date, is flagged. The text before the first
-// "## " is the file's own header. Only the newest entries are kept.
-function parseJournal(text: string, flag: Flag): JournalEntry[] {
+// "## " is the file's own header. Only entries from the last 14 days are read, and of those the newest 10 are kept.
+function parseJournal(text: string, now: Date, flag: Flag): JournalEntry[] {
   const entries: (JournalEntry & { stray: string[] })[] = [];
   let current: (typeof entries)[number] | null = null;
   let inEntries = false; // past the file header
@@ -125,9 +126,11 @@ function parseJournal(text: string, flag: Flag): JournalEntry[] {
       else current.stray.push(line);
     }
   }
-  const recent = entries.sort((a, b) => b.date.localeCompare(a.date)).slice(0, JOURNAL_ENTRIES);
-  for (const e of recent) for (const line of e.stray) flag(e.date, line);
-  return recent.map(({ date, bullets }) => ({ date, bullets }));
+  const earliest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - JOURNAL_DAYS);
+  const cutoff = iso(earliest.getFullYear(), earliest.getMonth() + 1, earliest.getDate());
+  const inWindow = entries.filter((e) => e.date >= cutoff).sort((a, b) => b.date.localeCompare(a.date));
+  for (const e of inWindow) for (const line of e.stray) flag(e.date, line); // every entry read, not only those shown
+  return inWindow.slice(0, JOURNAL_ENTRIES).map(({ date, bullets }) => ({ date, bullets }));
 }
 
 const noMorning = (state: Morning["state"]): Morning => ({
@@ -212,7 +215,7 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
     tasks: parseOpenTasks(sectionBody(status, "Tasks (open)"), now, flag),
     inbox: parseInbox(sectionBody(status, "Inbox"), now, flag),
     recentlyDone: parseRecentlyDone(sectionBody(status, "Recently Done"), now, flag),
-    journal: parseJournal(journalFile.text, (section, line) =>
+    journal: parseJournal(journalFile.text, now, (section, line) =>
       notUnderstood.push({ source: "JOURNAL.md", section, line }),
     ),
     notUnderstood,

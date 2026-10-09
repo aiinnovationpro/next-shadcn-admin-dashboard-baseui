@@ -535,11 +535,40 @@ test("only the ten newest journal entries are kept; no journal means no entries"
   const dir = scratchCopy("journal");
   const days = Array.from({ length: 12 }, (_, i) => `## 2026-09-${String(30 - i).padStart(2, "0")}\n- Day ${i}\n`);
   writeFileSync(join(dir, "context", "JOURNAL.md"), `# Journal\n\n---\n\n${days.join("\n")}`);
-  const { journal } = readWorkspace(dir);
+  const { journal } = readWorkspace(dir, new Date(2026, 9, 1, 12));
   assert.equal(journal.length, 10);
   assert.equal(journal[0].date, "2026-09-30");
   assert.equal(journal[9].date, "2026-09-21");
 
   assert.deepEqual(readWorkspace(fixture("full")).journal, []);
   assert.equal(readWorkspace(fixture("full")).sources[3].state, "missing");
+});
+
+test("the journal keeps the last 14 days: a 14-day-old entry stays, a 15-day-old one goes", () => {
+  const dir = scratchCopy("journal");
+  const entry = (date: string) => `## ${date}\n- Day ${date}\n`;
+  writeFileSync(
+    join(dir, "context", "JOURNAL.md"),
+    `# Journal\n\n---\n\n${["2026-10-09", "2026-09-25", "2026-09-24", "2026-08-01"].map(entry).join("\n")}`,
+  );
+  const { journal } = readWorkspace(dir, new Date(2026, 9, 9, 12));
+  assert.deepEqual(
+    journal.map((e) => e.date),
+    ["2026-10-09", "2026-09-25"],
+  );
+});
+
+test("malformed journal lines are flagged in every entry inside the window, past the tenth, and not in dropped ones", () => {
+  const dir = scratchCopy("journal");
+  const days = Array.from({ length: 12 }, (_, i) => `## 2026-09-${String(30 - i).padStart(2, "0")}\n- Day ${i}\nStray ${i}\n`);
+  writeFileSync(
+    join(dir, "context", "JOURNAL.md"),
+    `# Journal\n\n---\n\n${days.join("\n")}\n## 2026-08-01\n- Old\nStray old\n`,
+  );
+  const { journal, notUnderstood } = readWorkspace(dir, new Date(2026, 9, 1, 12));
+  assert.equal(journal.length, 10);
+  const flagged = notUnderstood.filter((n) => n.source === "JOURNAL.md").map((n) => n.line);
+  assert.equal(flagged.length, 12);
+  assert.ok(flagged.includes("Stray 11")); // the 12th entry is past the ten shown but was read
+  assert.ok(!flagged.includes("Stray old")); // outside 14 days, never read for display
 });
