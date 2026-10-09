@@ -120,9 +120,17 @@ function build(h: Helper, live: boolean): Inventory & { state: "ok" } {
   return { state: "ok", connectors, tools, plugins, routines: [...configured, ...onMachine], connectorsLive: live };
 }
 
+export function mcpCacheUsable(text: string): boolean {
+  try {
+    return Array.isArray(JSON.parse(text).servers);
+  } catch {
+    return false;
+  }
+}
+
 function cacheUsable(file: string): boolean {
   try {
-    return Array.isArray(JSON.parse(readFileSync(file, "utf8")).servers);
+    return mcpCacheUsable(readFileSync(file, "utf8"));
   } catch {
     return false;
   }

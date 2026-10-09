@@ -5,11 +5,11 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 import { getSnapshot } from "@/lib/workspace/snapshot";
 
 import { LiveRefresh } from "../_workspace/live-refresh";
-import { WorkspaceNotFound } from "../_workspace/workspace-page";
+import { EQUIPMENT_SOURCES, SourceBadges, WorkspaceNotFound } from "../_workspace/workspace-page";
 import { InventoryView } from "./_components/inventory-view";
 
 export default async function Page() {
-  const { workspaceFound, inventory } = await getSnapshot();
+  const { workspaceFound, inventory, sources } = await getSnapshot();
   if (!workspaceFound) return <WorkspaceNotFound />;
 
   const nothing =
@@ -19,12 +19,15 @@ export default async function Page() {
   return (
     <div className="flex flex-col gap-4">
       <LiveRefresh />
-      <div className="flex flex-col gap-1">
-        <h1 className="font-semibold text-2xl tracking-tight">Workspace</h1>
-        <p className="text-muted-foreground text-sm">
-          What this machine can do: the systems it is connected to, the tools and plugins installed, and the routines
-          that run on a schedule.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div className="flex flex-col gap-1">
+          <h1 className="font-semibold text-2xl tracking-tight">Workspace</h1>
+          <p className="text-muted-foreground text-sm">
+            What this machine can do: the systems it is connected to, the tools and plugins installed, and the routines
+            that run on a schedule.
+          </p>
+        </div>
+        <SourceBadges sources={sources.filter((s) => EQUIPMENT_SOURCES.includes(s.name))} />
       </div>
 
       {inventory.state === "unreadable" && (

@@ -1,4 +1,4 @@
-import { type Inventory, loadInventory } from "./inventory.ts";
+import { type Inventory, loadInventory, mcpCacheUsable } from "./inventory.ts";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -192,6 +192,13 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
   const projectsFile = readSource(root, "PROJECTS.md", now);
   const mailCache = readSource(root, ".mail_cache.json", now);
   const journalFile = readSource(root, "JOURNAL.md", now);
+  // What feeds the Workspace view: the equipment is only as current as config.yaml, and connected / not connected
+  // only as current as the saved server check. A check the inventory cannot use is unreadable, like a broken mail cache.
+  const configFile = readSource(root, "config.yaml", now);
+  const mcpCache = readSource(root, ".mcp_cache.json", now);
+  if (mcpCache.source.state === "ok" && !mcpCacheUsable(mcpCache.text)) {
+    mcpCache.source = { name: mcpCache.source.name, state: "unreadable", ageMinutes: null };
+  }
   const status = statusFile.text;
   const notUnderstood: NotUnderstood[] = [];
   const flag: Flag = (section, line) => notUnderstood.push({ source: "STATUS.md", section, line });
@@ -208,7 +215,14 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
   }
   return {
     workspaceFound: true,
-    sources: [statusFile.source, projectsFile.source, mailCache.source, journalFile.source],
+    sources: [
+      statusFile.source,
+      projectsFile.source,
+      mailCache.source,
+      journalFile.source,
+      configFile.source,
+      mcpCache.source,
+    ],
     projects: parseProjects(projectsFile.text, notUnderstood),
     currentFocus: sectionBody(status, "Current Focus").join("\n\n"),
     dayPlan: dayPlan.length > 0 ? dayPlan : null,
