@@ -28,7 +28,7 @@ npx skills add shadcn/ui
 
 The skill contains the component, styling, composition, accessibility, and CLI rules. Do not duplicate those rules here. Always inspect the local component source before using it.
 
-Do not modify files inside `src/components/ui/` or `src/components/calendar/`. Keep these components intact and apply styling or customization where they are used.
+Do not modify files inside `src/components/ui/`. Keep these components intact and apply styling or customization where they are used.
 
 ## Setup
 

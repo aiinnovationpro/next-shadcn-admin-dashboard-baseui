@@ -11,11 +11,34 @@ import type { Snapshot, Source } from "@/lib/workspace/reader";
 import { LiveRefresh } from "./live-refresh";
 
 const MAIL_STATE = ".mail_cache.json";
+const MCP_CHECK = ".mcp_cache.json";
 
-// The mail state only feeds the Today view (phase 2), so a missing one is a plain fact here, not an alarm.
+// The two sources that only feed the Workspace view; the other views leave them out of their badge row.
+export const EQUIPMENT_SOURCES = ["config.yaml", MCP_CHECK];
+
+const LABEL: Record<string, string> = {
+  [MAIL_STATE]: "Mail state",
+  "config.yaml": "Equipment list",
+  [MCP_CHECK]: "Connection check",
+};
+
+// A saved check that does not exist yet is a plain fact, not an alarm.
 function sourceVariant(s: Source) {
   if (s.state === "ok") return "outline";
-  return s.name === MAIL_STATE && s.state === "missing" ? "secondary" : "destructive";
+  return (s.name === MAIL_STATE || s.name === MCP_CHECK) && s.state === "missing" ? "secondary" : "destructive";
+}
+
+// "STATUS.md: 2 min ago", or the state when the source cannot be read. Never a made-up age.
+export function SourceBadges({ sources }: { sources: Source[] }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {sources.map((s) => (
+        <Badge key={s.name} variant={sourceVariant(s)}>
+          {LABEL[s.name] ?? s.name}: {s.state === "ok" ? formatAge(s.ageMinutes ?? 0) : s.state}
+        </Badge>
+      ))}
+    </div>
+  );
 }
 
 const WHY: Record<Source["state"], string> = {
@@ -64,14 +87,7 @@ export function WorkspacePage({
       <LiveRefresh />
       <div className="flex flex-wrap items-end justify-between gap-2">
         <h1 className="font-semibold text-2xl tracking-tight">{title}</h1>
-        <div className="flex flex-wrap gap-1.5">
-          {snap.sources.map((s) => (
-            <Badge key={s.name} variant={sourceVariant(s)}>
-              {s.name === MAIL_STATE ? "Mail state" : s.name}:{" "}
-              {s.state === "ok" ? formatAge(s.ageMinutes ?? 0) : s.state}
-            </Badge>
-          ))}
-        </div>
+        <SourceBadges sources={snap.sources.filter((s) => !EQUIPMENT_SOURCES.includes(s.name))} />
       </div>
 
       {counts && (
