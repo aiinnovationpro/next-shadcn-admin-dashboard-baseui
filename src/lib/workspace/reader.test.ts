@@ -1,6 +1,6 @@
 import { readWorkspace } from "./reader.ts";
 import assert from "node:assert/strict";
-import { chmodSync, cpSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -102,12 +102,63 @@ test("each source reports its state and age; a missing mail cache is reported, n
     { name: "PROJECTS.md", state: "ok", ageMinutes: 90 },
     { name: ".mail_cache.json", state: "missing", ageMinutes: null },
     { name: "JOURNAL.md", state: "missing", ageMinutes: null },
+    { name: "config.yaml", state: "missing", ageMinutes: null },
+    { name: ".mcp_cache.json", state: "missing", ageMinutes: null },
   ]);
 
   writeFileSync(join(dir, "context", ".mail_cache.json"), "{}");
   const threeDays = minutesAgo(now, 3 * 24 * 60);
   utimesSync(join(dir, "context", ".mail_cache.json"), threeDays, threeDays);
   assert.deepEqual(readWorkspace(dir, now).sources[2], { name: ".mail_cache.json", state: "ok", ageMinutes: 4320 });
+});
+
+const sourceNamed = (dir: string, name: string, now: Date) =>
+  readWorkspace(dir, now).sources.find((s) => s.name === name);
+
+test("config.yaml and the server check are sources too, with the same states and ages as the rest", () => {
+  const now = new Date(2026, 9, 8, 12);
+  const dir = scratchCopy("inventory");
+  utimesSync(join(dir, "context", "config.yaml"), minutesAgo(now, 5), minutesAgo(now, 5));
+  utimesSync(join(dir, "context", ".mcp_cache.json"), minutesAgo(now, 180), minutesAgo(now, 180));
+  assert.deepEqual(sourceNamed(dir, "config.yaml", now), { name: "config.yaml", state: "ok", ageMinutes: 5 });
+  assert.deepEqual(sourceNamed(dir, ".mcp_cache.json", now), { name: ".mcp_cache.json", state: "ok", ageMinutes: 180 });
+
+  // zero bytes is a half-synced file, not a quiet day
+  writeFileSync(join(dir, "context", "config.yaml"), "");
+  assert.equal(sourceNamed(dir, "config.yaml", now)?.state, "unreadable");
+  chmodSync(join(dir, "context", ".mcp_cache.json"), 0o000);
+  assert.deepEqual(sourceNamed(dir, ".mcp_cache.json", now), {
+    name: ".mcp_cache.json",
+    state: "unreadable",
+    ageMinutes: null,
+  });
+
+  rmSync(join(dir, "context", "config.yaml"));
+  writeFileSync(join(dir, "context", ".config.yaml.icloud"), "");
+  assert.equal(sourceNamed(dir, "config.yaml", now)?.state, "offloaded");
+  rmSync(join(dir, "context", ".config.yaml.icloud"));
+  assert.equal(sourceNamed(dir, "config.yaml", now)?.state, "missing");
+});
+
+test("a server check the inventory cannot use is unreadable, so its age never vouches for it", () => {
+  const dir = scratchCopy("inventory");
+  for (const content of ["{ not json", '{ "servers": "oops" }']) {
+    writeFileSync(join(dir, "context", ".mcp_cache.json"), content);
+    assert.equal(sourceNamed(dir, ".mcp_cache.json", new Date())?.state, "unreadable", content);
+  }
+});
+
+test("reading the sources only reads: config.yaml and the server check keep their contents and ages", () => {
+  const dir = scratchCopy("inventory");
+  const old = new Date(2026, 8, 1);
+  const files = ["config.yaml", ".mcp_cache.json"].map((n) => join(dir, "context", n));
+  for (const f of files) utimesSync(f, old, old);
+  const before = files.map((f) => [readFileSync(f, "utf8"), statSync(f).mtimeMs]);
+  readWorkspace(dir, new Date(2026, 9, 8, 12));
+  assert.deepEqual(
+    files.map((f) => [readFileSync(f, "utf8"), statSync(f).mtimeMs]),
+    before,
+  );
 });
 
 test("task suffixes become their own fields and leave the headline clean", () => {

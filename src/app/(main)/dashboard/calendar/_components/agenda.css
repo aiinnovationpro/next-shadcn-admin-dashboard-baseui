@@ -2,7 +2,7 @@
 
 /* Styles the classes /morning writes into the agenda fragment. Scoped here; globals.css is not touched. */
 
-.morning-agenda {
+.morning-agenda > ul {
   @apply m-0 flex list-none flex-col gap-2 p-0 text-sm;
 }
 
@@ -80,4 +80,135 @@
 
 .morning-agenda .mb-grid ul {
   @apply list-disc pl-4;
+}
+
+/* Timeline (the client component in timeline.tsx): blocks sized by duration on an hour axis.
+   The fragment stays a list; the script only sets top/height/left/width on each timed li. */
+.morning-agenda:has(> .tl-grid) {
+  @apply relative py-2;
+}
+
+.morning-agenda > .tl-grid {
+  @apply pointer-events-none absolute inset-x-0 top-2;
+  height: var(--tl-h);
+}
+
+.morning-agenda .tl-hr,
+.morning-agenda .tl-now {
+  @apply absolute right-0 h-0 border-t;
+  left: var(--tl-gutter);
+}
+
+.morning-agenda .tl-hr > span,
+.morning-agenda .tl-now > span {
+  @apply absolute -top-2 text-right text-[0.6875rem] leading-4 tabular-nums;
+  left: calc(-1 * var(--tl-gutter));
+  width: calc(var(--tl-gutter) - 0.625rem);
+}
+
+.morning-agenda .tl-hr > span {
+  @apply text-muted-foreground;
+}
+
+/* the only destructive-coloured stroke on the page, so it reads as "now" and not as an alarm */
+.morning-agenda .tl-now {
+  @apply z-20 border-destructive;
+}
+
+.morning-agenda .tl-now > span {
+  @apply bg-background font-semibold text-destructive;
+}
+
+.morning-agenda .tl-free {
+  @apply absolute flex items-center justify-center rounded-md bg-muted/40;
+  left: var(--tl-gutter);
+  right: 0;
+}
+
+.morning-agenda .tl-free > span {
+  @apply text-xs text-muted-foreground;
+}
+
+/* the spacer holds the axis open; timed items are absolute inside it, all-day items flow below as chips */
+.morning-agenda > ul[data-timeline] {
+  @apply relative flex-row flex-wrap items-start;
+}
+
+.morning-agenda > ul[data-timeline]::before {
+  content: "";
+  flex: 0 0 100%;
+  height: var(--tl-h);
+}
+
+.morning-agenda > ul[data-timeline] li.ev[data-time] {
+  @apply absolute overflow-hidden px-2.5 py-1 text-xs shadow-xs;
+}
+
+.morning-agenda > ul[data-timeline] li.ev[data-time] > b {
+  @apply static mr-1.5;
+}
+
+.morning-agenda > ul[data-timeline] li.ev[data-time]::before {
+  @apply float-right ml-2 text-[0.6875rem] text-muted-foreground tabular-nums;
+  content: attr(data-dur);
+}
+
+.morning-agenda > ul[data-timeline] li.ev[data-time].tight {
+  @apply py-0.5 leading-tight text-ellipsis whitespace-nowrap;
+}
+
+.morning-agenda > ul[data-timeline] li.ev[data-time].tight > i:not(.ic) {
+  @apply mt-0 ml-3 inline;
+}
+
+.morning-agenda > ul[data-timeline] li.ev:not([data-time]) {
+  @apply rounded-full px-3 py-1;
+}
+
+.morning-agenda > ul[data-timeline] li.ev:not([data-time]) > b {
+  @apply static mr-1;
+}
+
+.morning-agenda > ul[data-timeline] li.ev.past {
+  @apply opacity-60;
+}
+
+.morning-agenda > ul[data-timeline] li.ev.past:has(details.mb) {
+  @apply opacity-80;
+}
+
+.morning-agenda > ul[data-timeline] li.ev.running,
+.morning-agenda > ul[data-timeline] li.ev.next {
+  @apply border-l-primary bg-accent;
+}
+
+.morning-agenda > ul[data-timeline] li.ev.running::after,
+.morning-agenda > ul[data-timeline] li.ev.next::after {
+  @apply absolute right-2 bottom-1 text-[0.625rem] font-semibold tracking-wide text-muted-foreground uppercase;
+}
+
+.morning-agenda > ul[data-timeline] li.ev.running::after {
+  content: "running";
+}
+
+.morning-agenda > ul[data-timeline] li.ev.next::after {
+  content: "up next";
+}
+
+.morning-agenda > ul[data-timeline] li.ev.tight.running::after,
+.morning-agenda > ul[data-timeline] li.ev.tight.next::after {
+  @apply top-1/2 right-16 bottom-auto -translate-y-1/2;
+}
+
+/* an open briefing floats over the blocks below instead of being clipped by its own short block */
+.morning-agenda > ul[data-timeline] li.ev:has(details.mb[open]) {
+  @apply z-30 overflow-visible opacity-100;
+}
+
+.morning-agenda > ul[data-timeline] details.mb[open] {
+  @apply mt-0.5 inline-block;
+}
+
+.morning-agenda > ul[data-timeline] details.mb[open] > .mbc {
+  @apply absolute top-full left-0 z-30 mt-1.5 w-max max-w-[min(34rem,calc(100vw-2rem))] min-w-full border bg-popover shadow-md;
 }
