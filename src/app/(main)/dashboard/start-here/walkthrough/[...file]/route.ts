@@ -1,7 +1,8 @@
 import { startHereFile } from "@/lib/workspace/start-here-files";
+import { injectStartHere } from "@/lib/workspace/start-here-inject";
 
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 
@@ -37,6 +38,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ file
     "X-Content-Type-Options": "nosniff",
   };
   if (entry.sandbox) headers["Content-Security-Policy"] = `sandbox ${entry.sandbox}`;
+
+  // The walkthrough page is the one file changed on the way out (the workspace copy never is). ?theme=dark is only
+  // ever compared to a word, it never reaches a path.
+  if (entry.injected) {
+    const dark = new URL(request.url).searchParams.get("theme") === "dark";
+    const html = injectStartHere(await readFile(path, "utf8"), { dark });
+    headers["Content-Length"] = String(Buffer.byteLength(html));
+    return new Response(html, { headers });
+  }
 
   const range = /^bytes=(\d*)-(\d*)$/.exec(request.headers.get("range") ?? "");
   let start = 0;

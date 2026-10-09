@@ -17,3 +17,19 @@ test("anything else is refused, traversal included", () => {
   assert.equal(startHereFile(["reference", "start-here-deck", "slide-12.html"]), undefined);
   assert.equal(startHereFile(["START-HERE.html/"]), undefined);
 });
+
+test("no page is ever given the app's origin, and only the walkthrough may run a script besides the deck", () => {
+  assert.match(
+    startHereFile(["START-HERE.html"])?.sandbox ?? "",
+    /^allow-scripts allow-popups allow-popups-to-escape-sandbox$/,
+  );
+  for (const name of [
+    "START-HERE.html",
+    "reference/start-here-deck/index.html",
+    "reference/start-here-deck/slide-1.html",
+  ]) {
+    const sandbox = startHereFile(name.split("/"))?.sandbox ?? "";
+    assert.ok(sandbox, `${name} is sandboxed`);
+    assert.equal(sandbox.includes("allow-same-origin"), false, name);
+  }
+});

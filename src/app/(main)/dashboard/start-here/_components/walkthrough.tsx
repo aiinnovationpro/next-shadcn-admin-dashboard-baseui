@@ -2,11 +2,12 @@ import { connection } from "next/server";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
+import { WalkthroughFrame } from "./walkthrough-frame";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 
 // The workspace's own START-HERE.html, served read-only by the route next to this page, never copied here.
-// No scripts and no origin: the page is only text, pictures and a video.
+// The route adds a small script of its own (speed buttons, autoplay); the page has no origin either way.
 export async function Walkthrough() {
   await connection();
   const root = process.env.AKUTU_WORKSPACE;
@@ -29,13 +30,7 @@ export async function Walkthrough() {
       </CardHeader>
       {found && (
         <CardContent>
-          <iframe
-            src="/dashboard/start-here/walkthrough/START-HERE.html"
-            title="Start here walkthrough"
-            sandbox="allow-popups allow-popups-to-escape-sandbox"
-            loading="lazy"
-            className="h-[75vh] min-h-[32rem] w-full rounded-lg border"
-          />
+          <WalkthroughFrame />
         </CardContent>
       )}
     </Card>
