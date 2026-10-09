@@ -1,3 +1,4 @@
+import { type Inventory, loadInventory } from "./inventory.ts";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -75,6 +76,7 @@ export type Snapshot = {
   recentlyDone: DoneItem[];
   projects: Project[];
   notUnderstood: NotUnderstood[];
+  inventory: Inventory;
   morning: Morning;
   journal: JournalEntry[]; // the newest entries, newest first
 };
@@ -179,6 +181,7 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
       projects: [],
       journal: [],
       notUnderstood: [],
+      inventory: loadInventory(root),
       morning: noMorning("missing"),
     };
   }
@@ -213,6 +216,7 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
       notUnderstood.push({ source: "JOURNAL.md", section, line }),
     ),
     notUnderstood,
+    inventory: loadInventory(root),
     morning,
   };
 }

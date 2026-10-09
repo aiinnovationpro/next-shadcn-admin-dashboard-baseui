@@ -80,17 +80,7 @@ export function WorkspacePage({
         </div>
       )}
 
-      {broken.length > 0
-        ? broken.map((s) => (
-            <Alert key={s?.name} variant="destructive">
-              <AlertTriangle />
-              <AlertTitle>{s?.name} cannot be shown</AlertTitle>
-              <AlertDescription>
-                {s?.name} {s ? WHY[s.state] : ""}. This page is not empty, it is unreadable.
-              </AlertDescription>
-            </Alert>
-          ))
-        : children}
+      {broken.length > 0 ? broken.map((s) => s && <UnreadableSource key={s.name} source={s} />) : children}
 
       {snap.notUnderstood.length > 0 && (
         <Card size="sm">
@@ -113,6 +103,19 @@ export function WorkspacePage({
         </Card>
       )}
     </div>
+  );
+}
+
+// The honest message for a source that is not there or cannot be read; sections that read one source on their own reuse it.
+export function UnreadableSource({ source }: { source: Source }) {
+  return (
+    <Alert variant="destructive">
+      <AlertTriangle />
+      <AlertTitle>{source.name} cannot be shown</AlertTitle>
+      <AlertDescription>
+        {source.name} {WHY[source.state]}. This page is not empty, it is unreadable.
+      </AlertDescription>
+    </Alert>
   );
 }
 
