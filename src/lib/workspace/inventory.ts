@@ -1,5 +1,4 @@
 import { existsSync } from "node:fs";
-import { createRequire } from "node:module";
 import { join } from "node:path";
 
 export type Connector = {
@@ -127,7 +126,9 @@ export function loadInventory(root: string): Inventory {
   const here = process.cwd();
   try {
     const file = join(root, "reference", "scripts", "lib-workspace.js");
-    const load = createRequire(file);
+    // Fetched at runtime on purpose: webpack rewrites a static `createRequire` import into a stub that has no `.cache`,
+    // which made the whole inventory "unreadable" under `next dev --webpack`.
+    const load = process.getBuiltinModule("node:module").createRequire(file);
     delete load.cache[file]; // the helper may have changed since the last request
     const factory = load(file);
     if (typeof factory !== "function") throw new Error("lib-workspace.js does not export a function");

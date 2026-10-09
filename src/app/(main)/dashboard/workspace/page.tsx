@@ -32,7 +32,8 @@ export default async function Page() {
           <AlertTriangle />
           <AlertTitle>The equipment list cannot be shown</AlertTitle>
           <AlertDescription>
-            This page is not empty, it is unreadable: {inventory.reason}. Fix that and the page fills in by itself.
+            This page is not empty, it is unreadable. Fix the cause and it fills in by itself.
+            <code className="mt-1 block break-all font-mono text-xs">{inventory.reason.split("\n")[0]}</code>
           </AlertDescription>
         </Alert>
       )}
