@@ -1,0 +1,83 @@
+@reference "../../../../globals.css";
+
+/* Styles the classes /morning writes into the agenda fragment. Scoped here; globals.css is not touched. */
+
+.morning-agenda {
+  @apply m-0 flex list-none flex-col gap-2 p-0 text-sm;
+}
+
+.morning-agenda li.ev {
+  @apply relative rounded-md border border-l-4 bg-card py-2 pr-3 pl-16 leading-snug;
+}
+
+.morning-agenda li.ev > b {
+  @apply absolute top-2 left-3 font-semibold tabular-nums;
+}
+
+.morning-agenda li.ev.rem {
+  @apply border-dashed bg-transparent text-muted-foreground;
+}
+
+.morning-agenda li.ev.p-red {
+  @apply border-l-destructive;
+}
+
+/* No warning or amber token in globals.css (chart-3 turns green in dark mode), so a named Tailwind colour, per AGENTS.md. */
+.morning-agenda li.ev.p-amber {
+  @apply border-l-amber-500;
+}
+
+.morning-agenda li.ev > i:not(.ic) {
+  @apply mt-0.5 block text-muted-foreground not-italic;
+}
+
+/* format icons: the fragment carries empty <i class="ic ic-..."> marks */
+.morning-agenda .ic {
+  @apply mx-1 inline-block size-3.5 bg-current align-[-2px] text-muted-foreground;
+  mask: var(--glyph) center / contain no-repeat;
+}
+
+.morning-agenda .ic-video {
+  --glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11'/%3E%3Crect x='2' y='6' width='14' height='12' rx='2'/%3E%3C/svg%3E");
+}
+
+.morning-agenda .ic-bldg {
+  --glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='2' width='16' height='20' rx='2'/%3E%3Cpath d='M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01'/%3E%3C/svg%3E");
+}
+
+.morning-agenda .ic-cal {
+  --glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E");
+}
+
+/* the briefing button and its panel */
+.morning-agenda details.mb {
+  @apply my-0.5 inline-block align-middle;
+}
+
+.morning-agenda details.mb[open] {
+  @apply mt-2 block;
+}
+
+.morning-agenda details.mb > summary {
+  @apply inline-block cursor-pointer rounded-md border px-2 py-0.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground;
+}
+
+.morning-agenda .mbc {
+  @apply mt-2 max-h-72 overflow-y-auto rounded-md bg-muted/50 p-3;
+}
+
+.morning-agenda .mb-lead {
+  @apply mb-3;
+}
+
+.morning-agenda .mb-grid {
+  @apply grid gap-3 sm:grid-cols-2;
+}
+
+.morning-agenda .mb-grid h4 {
+  @apply mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase;
+}
+
+.morning-agenda .mb-grid ul {
+  @apply list-disc pl-4;
+}

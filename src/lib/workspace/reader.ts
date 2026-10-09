@@ -1,3 +1,4 @@
+import { type Inventory, loadInventory } from "./inventory.ts";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -49,6 +50,22 @@ export type Source = {
   ageMinutes: number | null;
 };
 
+// What /morning last wrote to .mail_cache.json. The fragments are escaped HTML, passed through unchanged;
+// an empty string means "not in the cache", so the view collapses it.
+export type Morning = {
+  state: Source["state"]; // "ok" only when the cache was read and parsed
+  date: string | null; // YYYY-MM-DD the cache was written for
+  fromToday: boolean; // false for an old (or undated) cache: the view labels it "from [day]"
+  mailChecked: boolean; // false in quick mode: there is no mail state to report
+  lead: string;
+  briefing: string;
+  briefingSections: string;
+  mailStatus: string;
+  agenda: string; // timeline <li>s; each meeting briefing sits inside its <li> as <details class="mb">
+};
+
+export type JournalEntry = { date: string; bullets: string[] }; // date: YYYY-MM-DD; bullets: raw markdown text
+
 export type Snapshot = {
   workspaceFound: boolean;
   sources: Source[];
@@ -59,6 +76,9 @@ export type Snapshot = {
   recentlyDone: DoneItem[];
   projects: Project[];
   notUnderstood: NotUnderstood[];
+  inventory: Inventory;
+  morning: Morning;
+  journal: JournalEntry[]; // entries from the last 14 days, newest first, at most 10
 };
 
 type Flag = (section: string, line: string) => void;
@@ -80,6 +100,77 @@ function readSource(root: string, name: string, now: Date): { source: Source; te
   }
 }
 
+const JOURNAL_ENTRIES = 10;
+const JOURNAL_DAYS = 14; // an entry exactly this many days old is still kept
+
+// "## YYYY-MM-DD" opens an entry, "- " opens a bullet, an indented line continues it, "###" and "---" are ignored.
+// Anything else under an entry, and any "## " heading that is no date, is flagged. The text before the first
+// "## " is the file's own header. Only entries from the last 14 days are read, and of those the newest 10 are kept.
+function parseJournal(text: string, now: Date, flag: Flag): JournalEntry[] {
+  const entries: (JournalEntry & { stray: string[] })[] = [];
+  let current: (typeof entries)[number] | null = null;
+  let inEntries = false; // past the file header
+  for (const line of text.split("\n")) {
+    const t = line.trim();
+    if (line.startsWith("## ")) {
+      inEntries = true;
+      const date = line.slice(3).trim();
+      current = /^\d{4}-\d{2}-\d{2}$/.test(date) ? { date, bullets: [], stray: [] } : null;
+      if (current) entries.push(current);
+      else flag("(entry heading)", line);
+    } else if (inEntries && t !== "" && t !== "---" && !line.startsWith("### ")) {
+      if (!current) flag("(entry heading)", line);
+      else if (line.startsWith("- ")) current.bullets.push(line.slice(2).trim());
+      else if (line.startsWith("  ") && current.bullets.length > 0)
+        current.bullets[current.bullets.length - 1] += ` ${t}`;
+      else current.stray.push(line);
+    }
+  }
+  const earliest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - JOURNAL_DAYS);
+  const cutoff = iso(earliest.getFullYear(), earliest.getMonth() + 1, earliest.getDate());
+  const inWindow = entries.filter((e) => e.date >= cutoff).sort((a, b) => b.date.localeCompare(a.date));
+  for (const e of inWindow) for (const line of e.stray) flag(e.date, line); // every entry read, not only those shown
+  return inWindow.slice(0, JOURNAL_ENTRIES).map(({ date, bullets }) => ({ date, bullets }));
+}
+
+const noMorning = (state: Morning["state"]): Morning => ({
+  state,
+  date: null,
+  fromToday: false,
+  mailChecked: false,
+  lead: "",
+  briefing: "",
+  briefingSections: "",
+  mailStatus: "",
+  agenda: "",
+});
+
+// The cache is one JSON object of fragments. Text that is not an object is unreadable, not an empty morning.
+function parseMorning(text: string, now: Date): Morning | null {
+  let cache: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
+    cache = parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const str = (key: string) => (typeof cache[key] === "string" ? (cache[key] as string) : "");
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(str("date")) ? str("date") : null;
+  const mailChecked = cache.mail_checked === true;
+  return {
+    state: "ok",
+    date,
+    fromToday: date === todayIso(now),
+    mailChecked,
+    lead: str("BRIEFING_LEAD"),
+    briefing: str("BRIEFING"),
+    briefingSections: str("BRIEFING_SECTIONS"),
+    mailStatus: mailChecked ? str("EMAIL_STATUS") : "",
+    agenda: str("AGENDA"),
+  };
+}
+
 export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
   if (!existsSync(join(root, "context"))) {
     return {
@@ -91,12 +182,16 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
       inbox: [],
       recentlyDone: [],
       projects: [],
+      journal: [],
       notUnderstood: [],
+      inventory: loadInventory(root),
+      morning: noMorning("missing"),
     };
   }
   const statusFile = readSource(root, "STATUS.md", now);
   const projectsFile = readSource(root, "PROJECTS.md", now);
   const mailCache = readSource(root, ".mail_cache.json", now);
+  const journalFile = readSource(root, "JOURNAL.md", now);
   const status = statusFile.text;
   const notUnderstood: NotUnderstood[] = [];
   const flag: Flag = (section, line) => notUnderstood.push({ source: "STATUS.md", section, line });
@@ -104,16 +199,28 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
     flag("Tasks (open)", "(section heading not found)");
   }
   const dayPlan = sectionBody(status, "Day Plan");
+  let morning = noMorning(mailCache.source.state);
+  if (mailCache.source.state === "ok") {
+    const parsed = parseMorning(mailCache.text, now);
+    if (parsed) morning = parsed;
+    else mailCache.source = { name: mailCache.source.name, state: "unreadable", ageMinutes: null };
+    morning.state = mailCache.source.state;
+  }
   return {
     workspaceFound: true,
-    sources: [statusFile.source, projectsFile.source, mailCache.source],
+    sources: [statusFile.source, projectsFile.source, mailCache.source, journalFile.source],
     projects: parseProjects(projectsFile.text, notUnderstood),
     currentFocus: sectionBody(status, "Current Focus").join("\n\n"),
     dayPlan: dayPlan.length > 0 ? dayPlan : null,
     tasks: parseOpenTasks(sectionBody(status, "Tasks (open)"), now, flag),
     inbox: parseInbox(sectionBody(status, "Inbox"), now, flag),
     recentlyDone: parseRecentlyDone(sectionBody(status, "Recently Done"), now, flag),
+    journal: parseJournal(journalFile.text, now, (section, line) =>
+      notUnderstood.push({ source: "JOURNAL.md", section, line }),
+    ),
     notUnderstood,
+    inventory: loadInventory(root),
+    morning,
   };
 }
 

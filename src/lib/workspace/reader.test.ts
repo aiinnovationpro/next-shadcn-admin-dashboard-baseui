@@ -1,6 +1,6 @@
 import { readWorkspace } from "./reader.ts";
 import assert from "node:assert/strict";
-import { chmodSync, cpSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -101,6 +101,7 @@ test("each source reports its state and age; a missing mail cache is reported, n
     { name: "STATUS.md", state: "ok", ageMinutes: 2 },
     { name: "PROJECTS.md", state: "ok", ageMinutes: 90 },
     { name: ".mail_cache.json", state: "missing", ageMinutes: null },
+    { name: "JOURNAL.md", state: "missing", ageMinutes: null },
   ]);
 
   writeFileSync(join(dir, "context", ".mail_cache.json"), "{}");
@@ -272,4 +273,305 @@ test("open tasks come out grouped by project, with the context line kept", () =>
       ["Alpha Project", "Book the venue", ""],
     ],
   );
+});
+
+const HELPER = join("reference", "scripts", "lib-workspace.js");
+
+test("an inventory the shared helper cannot deliver is unreadable, never an empty inventory", () => {
+  const missing = scratchCopy("inventory");
+  rmSync(join(missing, HELPER));
+  const gone = readWorkspace(missing).inventory;
+  assert.equal(gone.state, "unreadable");
+
+  const throwing = scratchCopy("inventory");
+  writeFileSync(join(throwing, HELPER), 'throw new Error("helper exploded");\n');
+  assert.deepEqual(readWorkspace(throwing).inventory, { state: "unreadable", reason: "helper exploded" });
+
+  const brokenReader = scratchCopy("inventory");
+  writeFileSync(
+    join(brokenReader, HELPER),
+    'module.exports = () => ({ readInventory() { throw new Error("config is garbage"); } });\n',
+  );
+  assert.deepEqual(readWorkspace(brokenReader).inventory, { state: "unreadable", reason: "config is garbage" });
+
+  const notAFactory = scratchCopy("inventory");
+  writeFileSync(join(notAFactory, HELPER), "module.exports = { not: 'a function' };\n");
+  assert.equal(readWorkspace(notAFactory).inventory.state, "unreadable");
+
+  assert.equal(readWorkspace(join(tmpdir(), "akutu-no-such-folder")).inventory.state, "unreadable");
+});
+
+test("the inventory merges the config with what the machine reports, as the old dashboard does", () => {
+  const { inventory } = readWorkspace(fixture("inventory"));
+  assert.equal(inventory.state, "ok");
+  if (inventory.state !== "ok") return;
+
+  // config entries first, live status wins; servers only the machine knows about follow, undeclared
+  assert.deepEqual(inventory.connectors, [
+    {
+      name: "Acme Mail",
+      purpose: "Mail for the studio",
+      connected: true,
+      declared: true,
+      fromPlugin: false,
+      scope: null,
+    },
+    { name: "Acme Chat", purpose: "Team chat", connected: true, declared: true, fromPlugin: false, scope: null },
+    { name: "widget-server", purpose: null, connected: true, declared: false, fromPlugin: true, scope: "widgets" },
+    { name: "Notes", purpose: null, connected: false, declared: false, fromPlugin: false, scope: "claude.ai" },
+  ]);
+  assert.equal(inventory.connectorsLive, true);
+
+  // listed or installed, sorted; a listed tool that is not installed stays visible; base tools are flagged
+  assert.deepEqual(inventory.tools, [
+    { name: "gh", installed: true, purpose: "GitHub from the terminal", base: false },
+    { name: "git", installed: true, purpose: null, base: true },
+    { name: "node", installed: true, purpose: null, base: true },
+    { name: "zzz-tool", installed: false, purpose: "Invented tool", base: false },
+  ]);
+
+  // the machine's registry is the truth: a disabled plugin is listed as disabled, not dropped
+  assert.deepEqual(inventory.plugins, [
+    { name: "gadgets", enabled: false, market: "invented-market", scope: "user", purpose: null },
+    { name: "widgets", enabled: true, market: "invented-market", scope: "user", purpose: null },
+  ]);
+
+  // config routines first; a machine routine with the same name is not counted twice; the helper ran in the workspace
+  assert.deepEqual(inventory.routines, [
+    { name: "Morning digest", purpose: "Briefing", schedule: "07:00 weekdays", machine: false },
+    { name: "nightly-sync", purpose: "crontab, 0 2 * * *", schedule: null, machine: true },
+    { name: "watch-inventory", purpose: "launchd, reagiert auf Datei-Aenderungen", schedule: null, machine: true },
+  ]);
+});
+
+// A bare-bones helper for tests that need one behaviour changed; `inventory` is the config.yaml content as JSON.
+const bareHelper = (inventory: object, overrides = "") => `
+module.exports = () => ({
+  KNOWN_CLIS: [], BASE_CLIS: [], norm: (x) => String(x), installed: () => false,
+  prettyMcp: (n) => ({ short: n, scope: "", fromPlugin: false }),
+  plugins: () => [], machineRoutines: () => [], mcpServers: () => [],
+  readInventory: () => (${JSON.stringify({ connectors: [], clis: [], plugins: [], routines: [], ...inventory })}),
+  ${overrides}
+});
+`;
+
+test("without a cached server check the app does not ask the machine, and says the connector state is the config's", () => {
+  const dir = scratchCopy("inventory");
+  rmSync(join(dir, "context", ".mcp_cache.json"));
+  writeFileSync(
+    join(dir, HELPER),
+    bareHelper(
+      { connectors: [{ name: "Acme Mail", purpose: "Mail", status: true }] },
+      'mcpServers: () => { throw new Error("would run claude mcp list and write into the workspace"); },',
+    ),
+  );
+
+  const { inventory } = readWorkspace(dir);
+  assert.equal(inventory.state, "ok");
+  if (inventory.state !== "ok") return;
+  assert.equal(inventory.connectorsLive, false);
+  assert.deepEqual(inventory.connectors, [
+    { name: "Acme Mail", purpose: "Mail", connected: true, declared: true, fromPlugin: false, scope: null },
+  ]);
+});
+
+// Mirrors the real helper's mcpServers(): it rewrites context/.mcp_cache.json unless the cache parses with an array
+// `servers` and MCP_FRESH is unset. The app is read-only, so none of these cases may reach it.
+const cacheWritingHelper = bareHelper(
+  { connectors: [{ name: "Acme Mail", purpose: "Mail", status: true }] },
+  `mcpServers: () => {
+    const fs = require("node:fs"), file = require("node:path").join(process.cwd(), "context", ".mcp_cache.json");
+    if (process.env.MCP_FRESH !== "1") {
+      try { const d = JSON.parse(fs.readFileSync(file, "utf8")); if (Array.isArray(d.servers)) return d.servers; } catch {}
+    }
+    fs.writeFileSync(file, JSON.stringify({ at: "now", servers: [] }));
+    return [];
+  },`,
+);
+
+for (const [what, content, fresh] of [
+  ["unparseable", "{ not json", undefined],
+  ["without a servers array", '{ "servers": "oops" }', undefined],
+  ["fine but MCP_FRESH is set", '{ "servers": [{ "name": "Acme Chat", "status": true }] }', "1"],
+] as const) {
+  test(`a cache that is ${what} is never rewritten by the app`, () => {
+    const dir = scratchCopy("inventory");
+    const cache = join(dir, "context", ".mcp_cache.json");
+    writeFileSync(cache, content);
+    writeFileSync(join(dir, HELPER), cacheWritingHelper);
+    const before = process.env.MCP_FRESH;
+    if (fresh) process.env.MCP_FRESH = fresh;
+    let inventory: ReturnType<typeof readWorkspace>["inventory"];
+    try {
+      inventory = readWorkspace(dir).inventory;
+    } finally {
+      if (before === undefined) delete process.env.MCP_FRESH;
+      else process.env.MCP_FRESH = before;
+    }
+
+    assert.equal(readFileSync(cache, "utf8"), content);
+    assert.equal(inventory.state, "ok");
+    if (inventory.state !== "ok") return;
+    // A fine cache with MCP_FRESH set is still read; the other two are not usable and fall back to the config.
+    assert.equal(inventory.connectorsLive, Boolean(fresh));
+    assert.equal(process.env.MCP_FRESH, before);
+  });
+}
+
+test("when the machine reports no plugins, the config's plugins are listed instead", () => {
+  const dir = scratchCopy("inventory");
+  writeFileSync(
+    join(dir, HELPER),
+    bareHelper({ plugins: [{ name: "cfg-plugin", status: true, purpose: "From the config" }] }),
+  );
+
+  const { inventory } = readWorkspace(dir);
+  assert.equal(inventory.state, "ok");
+  if (inventory.state !== "ok") return;
+  assert.deepEqual(inventory.plugins, [
+    { name: "cfg-plugin", enabled: true, market: null, scope: null, purpose: "From the config" },
+  ]);
+});
+
+test("a workspace without config.yaml has no inventory to show, which is not the same as an empty one", () => {
+  const dir = scratchCopy("inventory");
+  rmSync(join(dir, "context", "config.yaml"));
+  assert.equal(readWorkspace(dir).inventory.state, "unreadable");
+});
+
+test("reading the inventory leaves the process where it was, whether the helper works or throws", () => {
+  const before = process.cwd();
+  readWorkspace(fixture("inventory"));
+  assert.equal(process.cwd(), before);
+
+  const dir = scratchCopy("inventory");
+  writeFileSync(join(dir, HELPER), 'module.exports = () => { throw new Error("no"); };\n');
+  readWorkspace(dir);
+  assert.equal(process.cwd(), before);
+});
+
+// The morning cache holds escaped HTML fragments written by /morning; they must reach the views unchanged.
+const FRESH_BRIEFING =
+  "<p>Sam Ortiz sent the <strong>venue</strong> quote &amp; wants a call.</p><p>Nothing is overdue.</p>";
+
+test("the morning cache comes through unchanged, with its date and whether it is today's", () => {
+  const now = new Date(2026, 9, 8, 12);
+  const { morning } = readWorkspace(fixture("morning-fresh"), now);
+
+  assert.equal(morning.state, "ok");
+  assert.equal(morning.date, "2026-10-08");
+  assert.equal(morning.fromToday, true);
+  assert.equal(morning.mailChecked, true);
+  assert.equal(morning.lead, "Two meetings today, the venue call at 2 pm");
+  assert.equal(morning.briefing, FRESH_BRIEFING);
+  assert.equal(morning.mailStatus, "Tickets open 1 &middot; FYI 2");
+  assert.match(morning.agenda, /^<li class="ev" data-time="10:00" data-end="10:30"><b>10:00<\/b> Venue call /);
+  assert.match(morning.agenda, /<details class="mb">.*Agree the hall size &amp; price\..*<\/details>/); // meeting briefing kept
+  assert.match(morning.briefingSections, /^<details class="brf-sec" open>.*Quote from Sam &lt;3 days&gt;\./);
+});
+
+test("a cache from three days ago is flagged as not today's, still carrying its date", () => {
+  const { morning } = readWorkspace(fixture("morning-stale"), new Date(2026, 9, 8, 12));
+  assert.equal(morning.state, "ok");
+  assert.equal(morning.date, "2026-10-05");
+  assert.equal(morning.fromToday, false);
+  assert.equal(morning.briefing, FRESH_BRIEFING);
+});
+
+test("no cache means no morning data; a cache that cannot be parsed is unreadable, never empty", () => {
+  const now = new Date(2026, 9, 8, 12);
+  const none = readWorkspace(fixture("full"), now);
+  assert.equal(none.morning.state, "missing");
+  assert.equal(none.morning.briefing, "");
+  assert.equal(none.morning.fromToday, false);
+
+  // written by the test: a deliberately broken file would fail every JSON check on the fixtures folder
+  const dir = scratchCopy("morning-fresh");
+  writeFileSync(join(dir, "context", ".mail_cache.json"), '{ "date": "2026-10-08", "BRIEFING": "<p>cut off');
+  const broken = readWorkspace(dir, now);
+  assert.equal(broken.morning.state, "unreadable");
+  assert.equal(broken.morning.briefing, "");
+  assert.equal(broken.sources[2].state, "unreadable");
+});
+
+test("a cache written without a mailbox reports mail as not checked and carries no mail status", () => {
+  const { morning } = readWorkspace(fixture("morning-unchecked"), new Date(2026, 9, 8, 12));
+  assert.equal(morning.mailChecked, false);
+  assert.equal(morning.mailStatus, "");
+  assert.equal(morning.lead, "");
+  assert.match(morning.agenda, /Standup/);
+});
+
+test("recent journal entries come out newest first with their bullets; lines it cannot place are not dropped", () => {
+  const snap = readWorkspace(fixture("journal"), new Date(2026, 9, 8, 12));
+
+  assert.deepEqual(snap.journal, [
+    {
+      date: "2026-10-08",
+      bullets: [
+        "Venue: Sam Ortiz confirmed the hall for 120 guests Deposit due before the end of the month.",
+        "Caterer shortlisted, tasting booked",
+        "Idea: share the seating plan a week earlier",
+      ],
+    },
+    { date: "2026-10-07", bullets: ["Budget threshold agreed at 250k", "Invoice template updated"] },
+    { date: "2026-10-05", bullets: ["Kick-off done"] },
+  ]);
+  assert.deepEqual(
+    snap.notUnderstood
+      .filter((n) => n.source === "JOURNAL.md")
+      .map((n) => `${n.section} | ${n.line}`)
+      .sort(),
+    [
+      "(entry heading) | ## Archive of old things",
+      "(entry heading) | - Orphaned bullet under a heading that is no date",
+      "2026-10-07 | Stray prose that is not a bullet.",
+    ],
+  );
+  assert.equal(snap.sources[3].name, "JOURNAL.md");
+});
+
+test("only the ten newest journal entries are kept; no journal means no entries", () => {
+  const dir = scratchCopy("journal");
+  const days = Array.from({ length: 12 }, (_, i) => `## 2026-09-${String(30 - i).padStart(2, "0")}\n- Day ${i}\n`);
+  writeFileSync(join(dir, "context", "JOURNAL.md"), `# Journal\n\n---\n\n${days.join("\n")}`);
+  const { journal } = readWorkspace(dir, new Date(2026, 9, 1, 12));
+  assert.equal(journal.length, 10);
+  assert.equal(journal[0].date, "2026-09-30");
+  assert.equal(journal[9].date, "2026-09-21");
+
+  assert.deepEqual(readWorkspace(fixture("full")).journal, []);
+  assert.equal(readWorkspace(fixture("full")).sources[3].state, "missing");
+});
+
+test("the journal keeps the last 14 days: a 14-day-old entry stays, a 15-day-old one goes", () => {
+  const dir = scratchCopy("journal");
+  const entry = (date: string) => `## ${date}\n- Day ${date}\n`;
+  writeFileSync(
+    join(dir, "context", "JOURNAL.md"),
+    `# Journal\n\n---\n\n${["2026-10-09", "2026-09-25", "2026-09-24", "2026-08-01"].map(entry).join("\n")}`,
+  );
+  const { journal } = readWorkspace(dir, new Date(2026, 9, 9, 12));
+  assert.deepEqual(
+    journal.map((e) => e.date),
+    ["2026-10-09", "2026-09-25"],
+  );
+});
+
+test("malformed journal lines are flagged in every entry inside the window, past the tenth, and not in dropped ones", () => {
+  const dir = scratchCopy("journal");
+  const days = Array.from(
+    { length: 12 },
+    (_, i) => `## 2026-09-${String(30 - i).padStart(2, "0")}\n- Day ${i}\nStray ${i}\n`,
+  );
+  writeFileSync(
+    join(dir, "context", "JOURNAL.md"),
+    `# Journal\n\n---\n\n${days.join("\n")}\n## 2026-08-01\n- Old\nStray old\n`,
+  );
+  const { journal, notUnderstood } = readWorkspace(dir, new Date(2026, 9, 1, 12));
+  assert.equal(journal.length, 10);
+  const flagged = notUnderstood.filter((n) => n.source === "JOURNAL.md").map((n) => n.line);
+  assert.equal(flagged.length, 12);
+  assert.ok(flagged.includes("Stray 11")); // the 12th entry is past the ten shown but was read
+  assert.ok(!flagged.includes("Stray old")); // outside 14 days, never read for display
 });

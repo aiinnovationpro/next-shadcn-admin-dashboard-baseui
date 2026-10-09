@@ -25,30 +25,34 @@ const WHY: Record<Source["state"], string> = {
   offloaded: "was offloaded by iCloud and is not downloaded",
 };
 
+export function WorkspaceNotFound() {
+  return (
+    <Alert variant="destructive">
+      <AlertTriangle />
+      <AlertTitle>The Akutu_2 workspace folder was not found</AlertTitle>
+      <AlertDescription>
+        The folder named in AKUTU_WORKSPACE does not exist or has moved. Nothing is shown because nothing can be read,
+        which is different from an empty workspace.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 // The frame every view sits in: counts, honest source ages, and the failure states that must never read as "nothing to do".
 export function WorkspacePage({
   snap,
   title,
   needs,
+  counts = true,
   children,
 }: {
   snap: Snapshot;
   title: string;
   needs: ("STATUS.md" | "PROJECTS.md")[];
+  counts?: boolean; // false for views that are not about tasks or projects
   children: ReactNode;
 }) {
-  if (!snap.workspaceFound) {
-    return (
-      <Alert variant="destructive">
-        <AlertTriangle />
-        <AlertTitle>The Akutu_2 workspace folder was not found</AlertTitle>
-        <AlertDescription>
-          The folder named in AKUTU_WORKSPACE does not exist or has moved. Nothing is shown because nothing can be read,
-          which is different from an empty workspace.
-        </AlertDescription>
-      </Alert>
-    );
-  }
+  if (!snap.workspaceFound) return <WorkspaceNotFound />;
 
   const isOk = (name: string) => snap.sources.find((s) => s.name === name)?.state === "ok";
   const statusOk = isOk("STATUS.md");
@@ -70,23 +74,15 @@ export function WorkspacePage({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Count label="Tasks open" value={statusOk ? snap.tasks.length : null} />
-        <Count label="Inbox items" value={statusOk ? snap.inbox.length : null} />
-        <Count label="Projects" value={projectsOk ? snap.projects.length : null} />
-      </div>
+      {counts && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Count label="Tasks open" value={statusOk ? snap.tasks.length : null} />
+          <Count label="Inbox items" value={statusOk ? snap.inbox.length : null} />
+          <Count label="Projects" value={projectsOk ? snap.projects.length : null} />
+        </div>
+      )}
 
-      {broken.length > 0
-        ? broken.map((s) => (
-            <Alert key={s?.name} variant="destructive">
-              <AlertTriangle />
-              <AlertTitle>{s?.name} cannot be shown</AlertTitle>
-              <AlertDescription>
-                {s?.name} {s ? WHY[s.state] : ""}. This page is not empty, it is unreadable.
-              </AlertDescription>
-            </Alert>
-          ))
-        : children}
+      {broken.length > 0 ? broken.map((s) => s && <UnreadableSource key={s.name} source={s} />) : children}
 
       {snap.notUnderstood.length > 0 && (
         <Card size="sm">
@@ -109,6 +105,19 @@ export function WorkspacePage({
         </Card>
       )}
     </div>
+  );
+}
+
+// The honest message for a source that is not there or cannot be read; sections that read one source on their own reuse it.
+export function UnreadableSource({ source }: { source: Source }) {
+  return (
+    <Alert variant="destructive">
+      <AlertTriangle />
+      <AlertTitle>{source.name} cannot be shown</AlertTitle>
+      <AlertDescription>
+        {source.name} {WHY[source.state]}. This page is not empty, it is unreadable.
+      </AlertDescription>
+    </Alert>
   );
 }
 
