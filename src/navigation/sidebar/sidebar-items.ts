@@ -1,4 +1,4 @@
-import { Compass, FolderKanban, Inbox, ListTodo, type LucideIcon } from "lucide-react";
+import { Compass, FolderKanban, Inbox, ListTodo, type LucideIcon, Wrench } from "lucide-react";
 
 export type NavBadge = "new" | "soon";
 
@@ -38,7 +38,7 @@ export interface NavGroup {
   items: NavMainItem[];
 }
 
-// Phase 1 views. Today, Calendar, Workspace and Start Here arrive in phase 2.
+// Phase 1 views. Today and Calendar arrive in phase 2.
 export const sidebarItems: NavGroup[] = [
   {
     id: 1,
@@ -46,6 +46,7 @@ export const sidebarItems: NavGroup[] = [
       { id: "tasks", title: "Tasks", url: "/dashboard/tasks", icon: ListTodo },
       { id: "inbox", title: "Inbox", url: "/dashboard/inbox", icon: Inbox },
       { id: "projects", title: "Projects", url: "/dashboard/projects", icon: FolderKanban },
+      { id: "workspace", title: "Workspace", url: "/dashboard/workspace", icon: Wrench },
       { id: "start-here", title: "Start Here", url: "/dashboard/start-here", icon: Compass },
     ],
   },

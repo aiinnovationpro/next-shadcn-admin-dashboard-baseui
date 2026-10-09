@@ -25,6 +25,19 @@ const WHY: Record<Source["state"], string> = {
   offloaded: "was offloaded by iCloud and is not downloaded",
 };
 
+export function WorkspaceNotFound() {
+  return (
+    <Alert variant="destructive">
+      <AlertTriangle />
+      <AlertTitle>The Akutu_2 workspace folder was not found</AlertTitle>
+      <AlertDescription>
+        The folder named in AKUTU_WORKSPACE does not exist or has moved. Nothing is shown because nothing can be read,
+        which is different from an empty workspace.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 // The frame every view sits in: counts, honest source ages, and the failure states that must never read as "nothing to do".
 export function WorkspacePage({
   snap,
@@ -37,18 +50,7 @@ export function WorkspacePage({
   needs: ("STATUS.md" | "PROJECTS.md")[];
   children: ReactNode;
 }) {
-  if (!snap.workspaceFound) {
-    return (
-      <Alert variant="destructive">
-        <AlertTriangle />
-        <AlertTitle>The Akutu_2 workspace folder was not found</AlertTitle>
-        <AlertDescription>
-          The folder named in AKUTU_WORKSPACE does not exist or has moved. Nothing is shown because nothing can be read,
-          which is different from an empty workspace.
-        </AlertDescription>
-      </Alert>
-    );
-  }
+  if (!snap.workspaceFound) return <WorkspaceNotFound />;
 
   const isOk = (name: string) => snap.sources.find((s) => s.name === name)?.state === "ok";
   const statusOk = isOk("STATUS.md");
