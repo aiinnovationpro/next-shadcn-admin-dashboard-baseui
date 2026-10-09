@@ -30,11 +30,13 @@ export function WorkspacePage({
   snap,
   title,
   needs,
+  counts = true,
   children,
 }: {
   snap: Snapshot;
   title: string;
   needs: ("STATUS.md" | "PROJECTS.md")[];
+  counts?: boolean; // false for views that are not about tasks or projects
   children: ReactNode;
 }) {
   if (!snap.workspaceFound) {
@@ -70,11 +72,13 @@ export function WorkspacePage({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Count label="Tasks open" value={statusOk ? snap.tasks.length : null} />
-        <Count label="Inbox items" value={statusOk ? snap.inbox.length : null} />
-        <Count label="Projects" value={projectsOk ? snap.projects.length : null} />
-      </div>
+      {counts && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Count label="Tasks open" value={statusOk ? snap.tasks.length : null} />
+          <Count label="Inbox items" value={statusOk ? snap.inbox.length : null} />
+          <Count label="Projects" value={projectsOk ? snap.projects.length : null} />
+        </div>
+      )}
 
       {broken.length > 0 ? broken.map((s) => s && <UnreadableSource key={s.name} source={s} />) : children}
 
