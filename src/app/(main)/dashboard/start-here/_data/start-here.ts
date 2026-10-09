@@ -207,14 +207,14 @@ export const phases: Phase[] = [
         title: "Your systems, connected by name",
         summary: "Mailbox, calendar, and whatever else you named.",
         detail: [
-          "Connecting happens once, in Claude Cowork under Settings, and Claude Code then uses the same connection. Read access only, and the two promises hold everywhere: nothing is ever sent and nothing is ever written into your calendar.",
+          "Mail, calendar and files are reached through direct Google API calls, with the sign-in held in Doppler. The Google connectors in claude.ai are deliberately not used. Mail is read and drafted, the calendar is only read, and the two promises hold everywhere: nothing is ever sent and nothing is ever written into your calendar.",
           'Not in the catalogue? Then that system\'s own connector gets added directly instead. You fetch a token, Claude runs the command. It only ends at "no way in" once that has actually been checked.',
         ],
         items: [
           {
             name: "Your mailbox",
             tag: "not optional",
-            text: "Outlook, Gmail, Microsoft 365, Google Workspace. Without it the morning briefing cannot tell what needs an answer from what is just noise, and no draft can be written at all.",
+            text: "Gmail, through the Google API. Drafts are saved as drafts, never sent. Without it the morning briefing cannot tell what needs an answer from what is just noise, and no draft can be written at all.",
           },
           {
             name: "Your calendar",
@@ -231,7 +231,7 @@ export const phases: Phase[] = [
           },
           {
             name: "Where your files are",
-            text: "SharePoint, OneDrive, Google Drive. A document gets filed straight from where it already lives, instead of being downloaded first and forgotten in a folder afterwards.",
+            text: "Google Drive, through the same Google API sign-in. A document gets filed straight from where it already lives, instead of being downloaded first and forgotten in a folder afterwards.",
           },
           {
             name: "Where the talking happens",

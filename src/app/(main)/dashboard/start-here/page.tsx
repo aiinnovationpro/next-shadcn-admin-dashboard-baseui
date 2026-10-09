@@ -1,6 +1,7 @@
 import { HowYouWork } from "./_components/how-you-work";
 import { ReferenceCards } from "./_components/reference-cards";
 import { SetupPhases } from "./_components/setup-phases";
+import { Walkthrough } from "./_components/walkthrough";
 
 export default function Page() {
   return (
@@ -10,10 +11,9 @@ export default function Page() {
         <p className="text-muted-foreground text-sm">
           What this folder is, what the setup does with you, and what you end up with.
         </p>
-        <p className="text-muted-foreground text-sm">
-          The eight-minute walkthrough is the START-HERE.html page in the workspace root.
-        </p>
       </div>
+
+      <Walkthrough />
 
       <HowYouWork />
 
