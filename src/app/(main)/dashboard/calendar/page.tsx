@@ -1,21 +1,23 @@
 import type { ReactNode } from "react";
 
 import { formatDay } from "@/lib/workspace/dates";
-import type { Morning } from "@/lib/workspace/reader";
+import type { Morning, Source } from "@/lib/workspace/reader";
 import { getSnapshot } from "@/lib/workspace/snapshot";
 
-import { WorkspacePage } from "../_workspace/workspace-page";
+import { UnreadableSource, WorkspacePage } from "../_workspace/workspace-page";
 import { Agenda } from "./_components/agenda";
 
 function Note({ children }: { children: ReactNode }) {
   return <p className="text-muted-foreground text-sm">{children}</p>;
 }
 
-function Body({ morning }: { morning: Morning }) {
+function Body({ morning, cache }: { morning: Morning; cache?: Source }) {
   const { agenda, date, fromToday, state } = morning;
   const day = date ? formatDay(date) : null;
   const hasAgenda = agenda.trim() !== "";
 
+  // a cache that exists but cannot be read is not "no agenda yet"
+  if (cache && (state === "unreadable" || state === "offloaded")) return <UnreadableSource source={cache} />;
   if (state !== "ok") return <Note>No agenda yet. It appears after the morning briefing runs.</Note>;
 
   // an old agenda is never shown as today's: it sits behind its own label, closed
@@ -50,7 +52,7 @@ export default async function Page() {
 
   return (
     <WorkspacePage snap={snap} title="Calendar" needs={[]} counts={false}>
-      <Body morning={snap.morning} />
+      <Body morning={snap.morning} cache={snap.sources.find((s) => s.name === ".mail_cache.json")} />
     </WorkspacePage>
   );
 }
