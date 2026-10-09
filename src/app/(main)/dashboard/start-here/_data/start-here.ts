@@ -54,6 +54,45 @@ export const howYouWork: { lead: string; text: string }[] = [
 export const setupIntro =
   "The whole run, in the order it happens. Once, twenty to thirty minutes, and you can stop after any one of the four phases. Open any step to read why it is there.";
 
+export const plugins: Item[] = [
+  {
+    name: "skill-creator",
+    text: "You describe something you do every week; it builds you your own command for it. This is the one that turns the folder from a fixed set of features into something that grows with you.",
+  },
+  {
+    name: "ponytail",
+    text: 'Keeps whatever gets built small. Without it an AI answers "add a cache" with a cache class; with it, with one line. Matters most for people who do not read code and cannot tell the difference.',
+  },
+  {
+    name: "claude-code-setup",
+    text: "Reads how you have actually been working after a few weeks and says which of your repeated steps is worth turning into a command. Useless on day one, valuable in month two.",
+  },
+  {
+    name: "code-review",
+    text: "Reviews your own changes before they go out: several viewpoints first, then a separate pass that throws out everything it cannot actually prove. Pairs with /security-review, which Claude Code brings itself.",
+  },
+  {
+    name: "claude-md-management",
+    text: 'Your rules file grows every time you say "from now on". After months it sprawls and starts contradicting itself. This tidies it.',
+  },
+  {
+    name: "impeccable",
+    text: "Design guidance for anything with a screen: layout, spacing, colour, accessibility. Only pays off if you actually build interfaces.",
+  },
+  {
+    name: "superpowers",
+    text: "Development method: test first, debug systematically, plan before writing. For the people on your team who write code.",
+  },
+  {
+    name: "claude-mem",
+    text: "Remembers across sessions, so a new chat does not start from nothing. The one that gets asked about first: it keeps running in the background and writes down what it reads, including client documents. Yes or no, both are fine, everything works without it.",
+  },
+];
+
+// "Eight", not 8, in running text. Derived from the list so the copy cannot drift from it.
+const NUMBER_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
+export const pluginCount = NUMBER_WORDS[plugins.length] ?? String(plugins.length);
+
 export const phases: Phase[] = [
   {
     title: "You answer a few questions",
@@ -124,7 +163,7 @@ export const phases: Phase[] = [
       },
       {
         title: "The tools, the plugins, two accounts",
-        summary: "playwright and firecrawl, eight plugins, and the keys they need.",
+        summary: `playwright and firecrawl, ${pluginCount.toLowerCase()} plugins, and the keys they need.`,
         detail: [
           "Three things in one step, because they only work together: a tool without its key does nothing, and a key without its tool has nothing to unlock.",
           "Where the keys live: in a file outside this folder, with permissions only you can read. That way a repo that gets cloned, backed up or shared never carries them.",
@@ -140,7 +179,7 @@ export const phases: Phase[] = [
             text: "Reads web pages and searches, without opening a window. A competitor's site, a supplier's price list, what changed in a regulation. Your own free account, so nobody shares a limit with you.",
           },
           {
-            name: "Eight plugins",
+            name: `${pluginCount} plugins`,
             text: "The curated set, listed one by one below. New ones appear almost daily and telling this week's real thing from the noise is a job of its own, so handing you a list to install yourself would give you back exactly the work you were meant to be spared.",
           },
           {
@@ -212,41 +251,6 @@ export const phases: Phase[] = [
         ],
       },
     ],
-  },
-];
-
-export const plugins: Item[] = [
-  {
-    name: "skill-creator",
-    text: "You describe something you do every week; it builds you your own command for it. This is the one that turns the folder from a fixed set of features into something that grows with you.",
-  },
-  {
-    name: "ponytail",
-    text: 'Keeps whatever gets built small. Without it an AI answers "add a cache" with a cache class; with it, with one line. Matters most for people who do not read code and cannot tell the difference.',
-  },
-  {
-    name: "claude-code-setup",
-    text: "Reads how you have actually been working after a few weeks and says which of your repeated steps is worth turning into a command. Useless on day one, valuable in month two.",
-  },
-  {
-    name: "code-review",
-    text: "Reviews your own changes before they go out: several viewpoints first, then a separate pass that throws out everything it cannot actually prove. Pairs with /security-review, which Claude Code brings itself.",
-  },
-  {
-    name: "claude-md-management",
-    text: 'Your rules file grows every time you say "from now on". After months it sprawls and starts contradicting itself. This tidies it.',
-  },
-  {
-    name: "impeccable",
-    text: "Design guidance for anything with a screen: layout, spacing, colour, accessibility. Only pays off if you actually build interfaces.",
-  },
-  {
-    name: "superpowers",
-    text: "Development method: test first, debug systematically, plan before writing. For the people on your team who write code.",
-  },
-  {
-    name: "claude-mem",
-    text: "Remembers across sessions, so a new chat does not start from nothing. The one that gets asked about first: it keeps running in the background and writes down what it reads, including client documents. Yes or no, both are fine, everything works without it.",
   },
 ];
 

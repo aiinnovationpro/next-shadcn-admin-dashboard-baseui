@@ -11,7 +11,7 @@ export default function Page() {
           What this folder is, what the setup does with you, and what you end up with.
         </p>
         <p className="text-muted-foreground text-sm">
-          The eight-minute walkthrough, the eleven pictures, is the START-HERE.html page in the workspace root.
+          The eight-minute walkthrough is the START-HERE.html page in the workspace root.
         </p>
       </div>
 

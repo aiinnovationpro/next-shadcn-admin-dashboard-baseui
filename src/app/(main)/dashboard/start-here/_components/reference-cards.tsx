@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-import { alreadyHere, alsoYours, commands, plugins } from "../_data/start-here";
+import { alreadyHere, alsoYours, commands, pluginCount, plugins } from "../_data/start-here";
 import { ItemList } from "./item-list";
 
 export function ReferenceCards() {
@@ -10,7 +10,7 @@ export function ReferenceCards() {
       <Card size="sm">
         <CardHeader>
           <CardTitle>The plugins, one by one</CardTitle>
-          <CardDescription>Eight, and what each one is actually for.</CardDescription>
+          <CardDescription>{pluginCount}, and what each one is actually for.</CardDescription>
         </CardHeader>
         <CardContent>
           <ItemList items={plugins} />
