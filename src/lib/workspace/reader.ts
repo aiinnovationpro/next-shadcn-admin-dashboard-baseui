@@ -1,3 +1,4 @@
+import { type Inventory, loadInventory } from "./inventory.ts";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -59,6 +60,7 @@ export type Snapshot = {
   recentlyDone: DoneItem[];
   projects: Project[];
   notUnderstood: NotUnderstood[];
+  inventory: Inventory;
 };
 
 type Flag = (section: string, line: string) => void;
@@ -92,6 +94,7 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
       recentlyDone: [],
       projects: [],
       notUnderstood: [],
+      inventory: loadInventory(root),
     };
   }
   const statusFile = readSource(root, "STATUS.md", now);
@@ -114,6 +117,7 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
     inbox: parseInbox(sectionBody(status, "Inbox"), now, flag),
     recentlyDone: parseRecentlyDone(sectionBody(status, "Recently Done"), now, flag),
     notUnderstood,
+    inventory: loadInventory(root),
   };
 }
 

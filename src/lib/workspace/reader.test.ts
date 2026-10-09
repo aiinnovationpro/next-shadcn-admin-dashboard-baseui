@@ -273,3 +273,135 @@ test("open tasks come out grouped by project, with the context line kept", () =>
     ],
   );
 });
+
+const HELPER = join("reference", "scripts", "lib-workspace.js");
+
+test("an inventory the shared helper cannot deliver is unreadable, never an empty inventory", () => {
+  const missing = scratchCopy("inventory");
+  rmSync(join(missing, HELPER));
+  const gone = readWorkspace(missing).inventory;
+  assert.equal(gone.state, "unreadable");
+
+  const throwing = scratchCopy("inventory");
+  writeFileSync(join(throwing, HELPER), 'throw new Error("helper exploded");\n');
+  assert.deepEqual(readWorkspace(throwing).inventory, { state: "unreadable", reason: "helper exploded" });
+
+  const brokenReader = scratchCopy("inventory");
+  writeFileSync(
+    join(brokenReader, HELPER),
+    'module.exports = () => ({ readInventory() { throw new Error("config is garbage"); } });\n',
+  );
+  assert.deepEqual(readWorkspace(brokenReader).inventory, { state: "unreadable", reason: "config is garbage" });
+
+  const notAFactory = scratchCopy("inventory");
+  writeFileSync(join(notAFactory, HELPER), "module.exports = { not: 'a function' };\n");
+  assert.equal(readWorkspace(notAFactory).inventory.state, "unreadable");
+
+  assert.equal(readWorkspace(join(tmpdir(), "akutu-no-such-folder")).inventory.state, "unreadable");
+});
+
+test("the inventory merges the config with what the machine reports, as the old dashboard does", () => {
+  const { inventory } = readWorkspace(fixture("inventory"));
+  assert.equal(inventory.state, "ok");
+  if (inventory.state !== "ok") return;
+
+  // config entries first, live status wins; servers only the machine knows about follow, undeclared
+  assert.deepEqual(inventory.connectors, [
+    {
+      name: "Acme Mail",
+      purpose: "Mail for the studio",
+      connected: true,
+      declared: true,
+      fromPlugin: false,
+      scope: null,
+    },
+    { name: "Acme Chat", purpose: "Team chat", connected: true, declared: true, fromPlugin: false, scope: null },
+    { name: "widget-server", purpose: null, connected: true, declared: false, fromPlugin: true, scope: "widgets" },
+    { name: "Notes", purpose: null, connected: false, declared: false, fromPlugin: false, scope: "claude.ai" },
+  ]);
+  assert.equal(inventory.connectorsLive, true);
+
+  // listed or installed, sorted; a listed tool that is not installed stays visible; base tools are flagged
+  assert.deepEqual(inventory.tools, [
+    { name: "gh", installed: true, purpose: "GitHub from the terminal", base: false },
+    { name: "git", installed: true, purpose: null, base: true },
+    { name: "node", installed: true, purpose: null, base: true },
+    { name: "zzz-tool", installed: false, purpose: "Invented tool", base: false },
+  ]);
+
+  // the machine's registry is the truth: a disabled plugin is listed as disabled, not dropped
+  assert.deepEqual(inventory.plugins, [
+    { name: "gadgets", enabled: false, market: "invented-market", scope: "user", purpose: null },
+    { name: "widgets", enabled: true, market: "invented-market", scope: "user", purpose: null },
+  ]);
+
+  // config routines first; a machine routine with the same name is not counted twice; the helper ran in the workspace
+  assert.deepEqual(inventory.routines, [
+    { name: "Morning digest", purpose: "Briefing", schedule: "07:00 weekdays", machine: false },
+    { name: "nightly-sync", purpose: "crontab, 0 2 * * *", schedule: null, machine: true },
+    { name: "watch-inventory", purpose: "launchd, reagiert auf Datei-Aenderungen", schedule: null, machine: true },
+  ]);
+});
+
+// A bare-bones helper for tests that need one behaviour changed; `inventory` is the config.yaml content as JSON.
+const bareHelper = (inventory: object, overrides = "") => `
+module.exports = () => ({
+  KNOWN_CLIS: [], BASE_CLIS: [], norm: (x) => String(x), installed: () => false,
+  prettyMcp: (n) => ({ short: n, scope: "", fromPlugin: false }),
+  plugins: () => [], machineRoutines: () => [], mcpServers: () => [],
+  readInventory: () => (${JSON.stringify({ connectors: [], clis: [], plugins: [], routines: [], ...inventory })}),
+  ${overrides}
+});
+`;
+
+test("without a cached server check the app does not ask the machine, and says the connector state is the config's", () => {
+  const dir = scratchCopy("inventory");
+  rmSync(join(dir, "context", ".mcp_cache.json"));
+  writeFileSync(
+    join(dir, HELPER),
+    bareHelper(
+      { connectors: [{ name: "Acme Mail", purpose: "Mail", status: true }] },
+      'mcpServers: () => { throw new Error("would run claude mcp list and write into the workspace"); },',
+    ),
+  );
+
+  const { inventory } = readWorkspace(dir);
+  assert.equal(inventory.state, "ok");
+  if (inventory.state !== "ok") return;
+  assert.equal(inventory.connectorsLive, false);
+  assert.deepEqual(inventory.connectors, [
+    { name: "Acme Mail", purpose: "Mail", connected: true, declared: true, fromPlugin: false, scope: null },
+  ]);
+});
+
+test("when the machine reports no plugins, the config's plugins are listed instead", () => {
+  const dir = scratchCopy("inventory");
+  writeFileSync(
+    join(dir, HELPER),
+    bareHelper({ plugins: [{ name: "cfg-plugin", status: true, purpose: "From the config" }] }),
+  );
+
+  const { inventory } = readWorkspace(dir);
+  assert.equal(inventory.state, "ok");
+  if (inventory.state !== "ok") return;
+  assert.deepEqual(inventory.plugins, [
+    { name: "cfg-plugin", enabled: true, market: null, scope: null, purpose: "From the config" },
+  ]);
+});
+
+test("a workspace without config.yaml has no inventory to show, which is not the same as an empty one", () => {
+  const dir = scratchCopy("inventory");
+  rmSync(join(dir, "context", "config.yaml"));
+  assert.equal(readWorkspace(dir).inventory.state, "unreadable");
+});
+
+test("reading the inventory leaves the process where it was, whether the helper works or throws", () => {
+  const before = process.cwd();
+  readWorkspace(fixture("inventory"));
+  assert.equal(process.cwd(), before);
+
+  const dir = scratchCopy("inventory");
+  writeFileSync(join(dir, HELPER), 'module.exports = () => { throw new Error("no"); };\n');
+  readWorkspace(dir);
+  assert.equal(process.cwd(), before);
+});
