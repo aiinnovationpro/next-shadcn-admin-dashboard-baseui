@@ -9,6 +9,7 @@ const GUTTER = 52; // px, the hour labels
 const TARGET = 560; // px, the axis height for a 10-hour day, so Calendar stays on one screen
 const MIN_PPM = 0.7; // px per minute: a long day grows past TARGET rather than crushing the blocks
 const MAX_PPM = 1.6;
+const WIDE = "(min-width: 640px)"; // Tailwind's sm
 
 type Layout = { from: number; to: number; ppm: number; gaps: Slot[] };
 
@@ -23,14 +24,29 @@ const minutesNow = () => {
 export function Timeline({ html }: { html: string }) {
   const list = useRef<HTMLUListElement>(null);
   const [layout, setLayout] = useState<Layout | null>(null);
+  const [wide, setWide] = useState(false); // false on the server and first paint: the plain list
   const [now, setNow] = useState<number | null>(null);
   const [events, setEvents] = useState<(Slot & { reminder: boolean })[]>([]);
 
-  // Layout: positions follow the fragment, so they are recomputed only when it changes.
+  // Below 640px the overlap lanes are too narrow to hold a title and its briefing button: plain list there.
+  useEffect(() => {
+    const query = window.matchMedia(WIDE);
+    const sync = () => setWide(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+
+  // Layout: positions follow the fragment, so they are recomputed only when it changes (or the width class does).
   // biome-ignore lint/correctness/useExhaustiveDependencies: html is the trigger; the effect reads the DOM it produced
   useEffect(() => {
     const ul = list.current;
     if (!ul) return;
+    if (!wide) {
+      setLayout(null);
+      setEvents([]);
+      return;
+    }
     const lis = [...ul.querySelectorAll<HTMLElement>(":scope > li.ev")];
     const timed = lis.flatMap((li) => {
       const slot = toSlot(li.dataset.time, li.dataset.end);
@@ -67,7 +83,7 @@ export function Timeline({ html }: { html: string }) {
         li.classList.remove("tight", "past", "running", "next");
       }
     };
-  }, [html]);
+  }, [html, wide]);
 
   // The clock: dims what is over and moves the marker and the now line, once a minute.
   useEffect(() => {

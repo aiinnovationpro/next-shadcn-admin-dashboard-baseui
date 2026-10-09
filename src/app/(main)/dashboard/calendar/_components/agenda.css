@@ -212,16 +212,3 @@
 .morning-agenda > ul[data-timeline] details.mb[open] > .mbc {
   @apply absolute top-full left-0 z-30 mt-1.5 w-max max-w-[min(34rem,calc(100vw-2rem))] min-w-full border bg-popover shadow-md;
 }
-
-/* on a phone the overlap lanes are narrow: the duration label would take the title's room, and a short block
-   keeps only its highlight as the marker */
-@media (max-width: 40rem) {
-  .morning-agenda > ul[data-timeline] li.ev.tight.running::after,
-  .morning-agenda > ul[data-timeline] li.ev.tight.next::after {
-    display: none;
-  }
-
-  .morning-agenda > ul[data-timeline] li.ev[data-time]::before {
-    display: none;
-  }
-}
