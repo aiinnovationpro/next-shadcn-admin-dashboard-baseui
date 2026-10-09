@@ -101,6 +101,7 @@ test("each source reports its state and age; a missing mail cache is reported, n
     { name: "STATUS.md", state: "ok", ageMinutes: 2 },
     { name: "PROJECTS.md", state: "ok", ageMinutes: 90 },
     { name: ".mail_cache.json", state: "missing", ageMinutes: null },
+    { name: "JOURNAL.md", state: "missing", ageMinutes: null },
   ]);
 
   writeFileSync(join(dir, "context", ".mail_cache.json"), "{}");
@@ -272,4 +273,98 @@ test("open tasks come out grouped by project, with the context line kept", () =>
       ["Alpha Project", "Book the venue", ""],
     ],
   );
+});
+
+// The morning cache holds escaped HTML fragments written by /morning; they must reach the views unchanged.
+const FRESH_BRIEFING =
+  "<p>Sam Ortiz sent the <strong>venue</strong> quote &amp; wants a call.</p><p>Nothing is overdue.</p>";
+
+test("the morning cache comes through unchanged, with its date and whether it is today's", () => {
+  const now = new Date(2026, 9, 8, 12);
+  const { morning } = readWorkspace(fixture("morning-fresh"), now);
+
+  assert.equal(morning.state, "ok");
+  assert.equal(morning.date, "2026-10-08");
+  assert.equal(morning.fromToday, true);
+  assert.equal(morning.mailChecked, true);
+  assert.equal(morning.lead, "Two meetings today, the venue call at 2 pm");
+  assert.equal(morning.briefing, FRESH_BRIEFING);
+  assert.equal(morning.mailStatus, "Tickets open 1 &middot; FYI 2");
+  assert.match(morning.agenda, /^<li class="ev" data-time="10:00" data-end="10:30"><b>10:00<\/b> Venue call /);
+  assert.match(morning.agenda, /<details class="mb">.*Agree the hall size &amp; price\..*<\/details>/); // meeting briefing kept
+  assert.match(morning.briefingSections, /^<details class="brf-sec" open>.*Quote from Sam &lt;3 days&gt;\./);
+});
+
+test("a cache from three days ago is flagged as not today's, still carrying its date", () => {
+  const { morning } = readWorkspace(fixture("morning-stale"), new Date(2026, 9, 8, 12));
+  assert.equal(morning.state, "ok");
+  assert.equal(morning.date, "2026-10-05");
+  assert.equal(morning.fromToday, false);
+  assert.equal(morning.briefing, FRESH_BRIEFING);
+});
+
+test("no cache means no morning data; a cache that cannot be parsed is unreadable, never empty", () => {
+  const now = new Date(2026, 9, 8, 12);
+  const none = readWorkspace(fixture("full"), now);
+  assert.equal(none.morning.state, "missing");
+  assert.equal(none.morning.briefing, "");
+  assert.equal(none.morning.fromToday, false);
+
+  // written by the test: a deliberately broken file would fail every JSON check on the fixtures folder
+  const dir = scratchCopy("morning-fresh");
+  writeFileSync(join(dir, "context", ".mail_cache.json"), '{ "date": "2026-10-08", "BRIEFING": "<p>cut off');
+  const broken = readWorkspace(dir, now);
+  assert.equal(broken.morning.state, "unreadable");
+  assert.equal(broken.morning.briefing, "");
+  assert.equal(broken.sources[2].state, "unreadable");
+});
+
+test("a cache written without a mailbox reports mail as not checked and carries no mail status", () => {
+  const { morning } = readWorkspace(fixture("morning-unchecked"), new Date(2026, 9, 8, 12));
+  assert.equal(morning.mailChecked, false);
+  assert.equal(morning.mailStatus, "");
+  assert.equal(morning.lead, "");
+  assert.match(morning.agenda, /Standup/);
+});
+
+test("recent journal entries come out newest first with their bullets; lines it cannot place are not dropped", () => {
+  const snap = readWorkspace(fixture("journal"), new Date(2026, 9, 8, 12));
+
+  assert.deepEqual(snap.journal, [
+    {
+      date: "2026-10-08",
+      bullets: [
+        "Venue: Sam Ortiz confirmed the hall for 120 guests Deposit due before the end of the month.",
+        "Caterer shortlisted, tasting booked",
+        "Idea: share the seating plan a week earlier",
+      ],
+    },
+    { date: "2026-10-07", bullets: ["Budget threshold agreed at 250k", "Invoice template updated"] },
+    { date: "2026-10-05", bullets: ["Kick-off done"] },
+  ]);
+  assert.deepEqual(
+    snap.notUnderstood
+      .filter((n) => n.source === "JOURNAL.md")
+      .map((n) => `${n.section} | ${n.line}`)
+      .sort(),
+    [
+      "(entry heading) | ## Archive of old things",
+      "(entry heading) | - Orphaned bullet under a heading that is no date",
+      "2026-10-07 | Stray prose that is not a bullet.",
+    ],
+  );
+  assert.equal(snap.sources[3].name, "JOURNAL.md");
+});
+
+test("only the ten newest journal entries are kept; no journal means no entries", () => {
+  const dir = scratchCopy("journal");
+  const days = Array.from({ length: 12 }, (_, i) => `## 2026-09-${String(30 - i).padStart(2, "0")}\n- Day ${i}\n`);
+  writeFileSync(join(dir, "context", "JOURNAL.md"), `# Journal\n\n---\n\n${days.join("\n")}`);
+  const { journal } = readWorkspace(dir);
+  assert.equal(journal.length, 10);
+  assert.equal(journal[0].date, "2026-09-30");
+  assert.equal(journal[9].date, "2026-09-21");
+
+  assert.deepEqual(readWorkspace(fixture("full")).journal, []);
+  assert.equal(readWorkspace(fixture("full")).sources[3].state, "missing");
 });
