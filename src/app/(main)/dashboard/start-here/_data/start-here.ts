@@ -90,7 +90,21 @@ export const plugins: Item[] = [
 ];
 
 // "Eight", not 8, in running text. Derived from the list so the copy cannot drift from it.
-const NUMBER_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
+const NUMBER_WORDS = [
+  "No",
+  "One",
+  "Two",
+  "Three",
+  "Four",
+  "Five",
+  "Six",
+  "Seven",
+  "Eight",
+  "Nine",
+  "Ten",
+  "Eleven",
+  "Twelve",
+];
 export const pluginCount = NUMBER_WORDS[plugins.length] ?? String(plugins.length);
 
 export const phases: Phase[] = [

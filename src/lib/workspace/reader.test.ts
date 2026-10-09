@@ -560,7 +560,10 @@ test("the journal keeps the last 14 days: a 14-day-old entry stays, a 15-day-old
 
 test("malformed journal lines are flagged in every entry inside the window, past the tenth, and not in dropped ones", () => {
   const dir = scratchCopy("journal");
-  const days = Array.from({ length: 12 }, (_, i) => `## 2026-09-${String(30 - i).padStart(2, "0")}\n- Day ${i}\nStray ${i}\n`);
+  const days = Array.from(
+    { length: 12 },
+    (_, i) => `## 2026-09-${String(30 - i).padStart(2, "0")}\n- Day ${i}\nStray ${i}\n`,
+  );
   writeFileSync(
     join(dir, "context", "JOURNAL.md"),
     `# Journal\n\n---\n\n${days.join("\n")}\n## 2026-08-01\n- Old\nStray old\n`,
