@@ -6,6 +6,7 @@ import { getSnapshot } from "@/lib/workspace/snapshot";
 
 import { UnreadableSource, WorkspacePage } from "../_workspace/workspace-page";
 import { Agenda } from "./_components/agenda";
+import { Timeline } from "./_components/timeline";
 
 function Note({ children }: { children: ReactNode }) {
   return <p className="text-muted-foreground text-sm">{children}</p>;
@@ -42,7 +43,7 @@ function Body({ morning, cache }: { morning: Morning; cache?: Source }) {
   return (
     <section className="flex flex-col gap-2">
       <h2 className="font-medium text-lg">Today, {day}</h2>
-      <Agenda html={agenda} />
+      <Timeline html={agenda} />
     </section>
   );
 }
