@@ -1,0 +1,9 @@
+{
+  "date": "2026-10-05",
+  "mail_checked": true,
+  "BRIEFING_LEAD": "Two meetings today, the venue call at 2 pm",
+  "EMAIL_STATUS": "Tickets open 1 &middot; FYI 2",
+  "AGENDA": "<li class=\"ev\" data-time=\"10:00\" data-end=\"10:30\"><b>10:00</b> Venue call <i class=\"ic ic-video\"></i><details class=\"mb\"><summary>Briefing</summary><div class=\"mbc\"><p class=\"mb-lead\">Agree the hall size &amp; price.</p></div></details><i>Sam Ortiz joins</i></li>",
+  "BRIEFING": "<p>Sam Ortiz sent the <strong>venue</strong> quote &amp; wants a call.</p><p>Nothing is overdue.</p>",
+  "BRIEFING_SECTIONS": "<details class=\"brf-sec\" open><summary><span class=\"bs-title\">Waiting on</span><span class=\"bs-count\">1</span></summary><div><p>Quote from Sam &lt;3 days&gt;.</p></div></details>"
+}
