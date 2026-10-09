@@ -1,4 +1,4 @@
-import { Compass, FolderKanban, Inbox, ListTodo, type LucideIcon } from "lucide-react";
+import { Compass, FolderKanban, Inbox, ListTodo, type LucideIcon, Sun } from "lucide-react";
 
 export type NavBadge = "new" | "soon";
 
@@ -43,6 +43,7 @@ export const sidebarItems: NavGroup[] = [
   {
     id: 1,
     items: [
+      { id: "today", title: "Today", url: "/dashboard/default", icon: Sun },
       { id: "tasks", title: "Tasks", url: "/dashboard/tasks", icon: ListTodo },
       { id: "inbox", title: "Inbox", url: "/dashboard/inbox", icon: Inbox },
       { id: "projects", title: "Projects", url: "/dashboard/projects", icon: FolderKanban },

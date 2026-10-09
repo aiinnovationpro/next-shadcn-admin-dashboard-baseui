@@ -8,7 +8,7 @@ const nextConfig = {
     return [
       {
         source: "/dashboard",
-        destination: "/dashboard/tasks",
+        destination: "/dashboard/default",
         permanent: false,
       },
     ];
