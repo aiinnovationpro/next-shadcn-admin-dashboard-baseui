@@ -8,6 +8,8 @@ export interface StartHereFile {
   type: string;
   /** Content-Security-Policy sandbox value for pages, so they stay isolated even when opened on their own. */
   sandbox?: string;
+  /** The route adds its own script (and, on request, a dark style) to this page on the way out. */
+  injected?: boolean;
 }
 
 const DECK = "reference/start-here-deck";
@@ -25,13 +27,17 @@ function entry(path: string, sandbox?: string): [string, StartHereFile] {
   return [path, { path, type: types[path.split(".").pop() ?? ""], sandbox }];
 }
 
-// The walkthrough page has no script of its own; its links open the deck in a new tab.
-const page = "allow-popups allow-popups-to-escape-sandbox";
+// The walkthrough page has no script of its own; the route injects one (speed buttons, autoplay). The page still
+// has no origin, so that script cannot touch the app around it. Its links open the deck in a new tab.
+const page = "allow-scripts allow-popups allow-popups-to-escape-sandbox";
 // The deck steps through its slides with a little script, so it may run scripts, still without any origin.
 const deck = "allow-scripts";
 
+const walkthrough = entry("START-HERE.html", page);
+walkthrough[1].injected = true;
+
 const files = new Map<string, StartHereFile>([
-  entry("START-HERE.html", page),
+  walkthrough,
   entry(`${DECK}/start-here-walkthrough.mp4`),
   entry(`${DECK}/index.html`, deck),
   entry(`${DECK}/deck.js`),

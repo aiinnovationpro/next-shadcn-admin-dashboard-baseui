@@ -3,6 +3,7 @@ import { Clock, Plug, Puzzle, Wrench } from "lucide-react";
 import type { Connector, Inventory, Plugin } from "@/lib/workspace/inventory";
 
 import { InventoryCard, type Row } from "./inventory-card";
+import { NotConnected } from "./not-connected";
 
 type Ok = Extract<Inventory, { state: "ok" }>;
 
@@ -26,7 +27,8 @@ const onFirst = <T,>(items: T[], on: (item: T) => boolean) => [...items.filter(o
 
 // Groups with nothing in them are left out rather than drawn empty.
 export function InventoryView({ inventory }: { inventory: Ok }) {
-  const connectors = onFirst(inventory.connectors, (c) => c.connected);
+  const connectors = inventory.connectors.filter((c) => c.connected);
+  const notConnected = inventory.connectors.filter((c) => !c.connected);
   const plugins = onFirst(inventory.plugins, (p) => p.enabled);
   const base = inventory.tools.filter((t) => t.base);
   const tools = inventory.tools.filter((t) => !t.base);
@@ -34,7 +36,7 @@ export function InventoryView({ inventory }: { inventory: Ok }) {
   const connectorRows: Row[] = connectors.map((c) => ({
     name: c.name,
     text: connectorText(c),
-    badge: { label: c.connected ? "Connected" : "Not connected", on: c.connected },
+    badge: { label: "Connected", on: true },
   }));
   const toolRows: Row[] = tools.map((t) => ({
     name: t.name,
@@ -59,12 +61,13 @@ export function InventoryView({ inventory }: { inventory: Ok }) {
     // Two stacked columns, so a short card sits under a short one instead of leaving a gap beside a long one.
     <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
       <div className="flex flex-col gap-4 empty:hidden">
-        {connectorRows.length > 0 && (
+        {inventory.connectors.length > 0 && (
           <InventoryCard
             icon={Plug}
             title="Connected systems"
-            summary={connected(inventory.connectors.filter((c) => c.connected).length, inventory.connectors.length)}
+            summary={connected(connectors.length, inventory.connectors.length)}
             rows={connectorRows}
+            footer={notConnected.length > 0 && <NotConnected connectors={notConnected} />}
           />
         )}
         {routineRows.length > 0 && (
