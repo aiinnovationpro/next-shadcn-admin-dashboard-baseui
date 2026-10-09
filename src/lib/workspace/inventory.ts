@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 export type Connector = {
@@ -120,11 +120,20 @@ function build(h: Helper, live: boolean): Inventory & { state: "ok" } {
   return { state: "ok", connectors, tools, plugins, routines: [...configured, ...onMachine], connectorsLive: live };
 }
 
+function cacheUsable(file: string): boolean {
+  try {
+    return Array.isArray(JSON.parse(readFileSync(file, "utf8")).servers);
+  } catch {
+    return false;
+  }
+}
+
 // The shared helper is CommonJS and lives in the workspace, so it is loaded by absolute path at runtime
 // and never copied or bundled.
 export function loadInventory(root: string): Inventory {
   const here = process.cwd();
   try {
+    if (!existsSync(join(root, "context", "config.yaml"))) throw new Error("context/config.yaml not found");
     const file = join(root, "reference", "scripts", "lib-workspace.js");
     // Fetched at runtime on purpose: webpack rewrites a static `createRequire` import into a stub that has no `.cache`,
     // which made the whole inventory "unreadable" under `next dev --webpack`.
@@ -134,11 +143,18 @@ export function loadInventory(root: string): Inventory {
     if (typeof factory !== "function") throw new Error("lib-workspace.js does not export a function");
     // ponytail: the helper finds its caches and launch agents through process.cwd(), so it runs with the workspace
     // as cwd. Safe because everything below is synchronous; use a child process if any of it ever awaits.
-    if (!existsSync(join(root, "context", "config.yaml"))) throw new Error("context/config.yaml not found");
     process.chdir(root);
-    // Without a cached server list the helper would run `claude mcp list` (about 4 s) and write the cache into the
-    // workspace. The app is read-only, so it leaves that to /morning and shows the config's state instead.
-    return build(factory(root), existsSync(join(root, "context", ".mcp_cache.json")));
+    // The helper's mcpServers() runs `claude mcp list` (about 4 s) and rewrites context/.mcp_cache.json unless the
+    // cache parses with an array `servers` and MCP_FRESH is unset. The app is read-only, so it only gets there with
+    // a cache that is usable as it is, and otherwise shows the config's state; /morning refreshes the cache.
+    const live = cacheUsable(join(root, "context", ".mcp_cache.json"));
+    const fresh = process.env.MCP_FRESH;
+    delete process.env.MCP_FRESH;
+    try {
+      return build(factory(root), live);
+    } finally {
+      if (fresh !== undefined) process.env.MCP_FRESH = fresh;
+    }
   } catch (error) {
     return { state: "unreadable", reason: error instanceof Error ? error.message : String(error) };
   } finally {

@@ -1,6 +1,6 @@
 import { readWorkspace } from "./reader.ts";
 import assert from "node:assert/strict";
-import { chmodSync, cpSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -374,6 +374,49 @@ test("without a cached server check the app does not ask the machine, and says t
     { name: "Acme Mail", purpose: "Mail", connected: true, declared: true, fromPlugin: false, scope: null },
   ]);
 });
+
+// Mirrors the real helper's mcpServers(): it rewrites context/.mcp_cache.json unless the cache parses with an array
+// `servers` and MCP_FRESH is unset. The app is read-only, so none of these cases may reach it.
+const cacheWritingHelper = bareHelper(
+  { connectors: [{ name: "Acme Mail", purpose: "Mail", status: true }] },
+  `mcpServers: () => {
+    const fs = require("node:fs"), file = require("node:path").join(process.cwd(), "context", ".mcp_cache.json");
+    if (process.env.MCP_FRESH !== "1") {
+      try { const d = JSON.parse(fs.readFileSync(file, "utf8")); if (Array.isArray(d.servers)) return d.servers; } catch {}
+    }
+    fs.writeFileSync(file, JSON.stringify({ at: "now", servers: [] }));
+    return [];
+  },`,
+);
+
+for (const [what, content, fresh] of [
+  ["unparseable", "{ not json", undefined],
+  ["without a servers array", '{ "servers": "oops" }', undefined],
+  ["fine but MCP_FRESH is set", '{ "servers": [{ "name": "Acme Chat", "status": true }] }', "1"],
+] as const) {
+  test(`a cache that is ${what} is never rewritten by the app`, () => {
+    const dir = scratchCopy("inventory");
+    const cache = join(dir, "context", ".mcp_cache.json");
+    writeFileSync(cache, content);
+    writeFileSync(join(dir, HELPER), cacheWritingHelper);
+    const before = process.env.MCP_FRESH;
+    if (fresh) process.env.MCP_FRESH = fresh;
+    let inventory: ReturnType<typeof readWorkspace>["inventory"];
+    try {
+      inventory = readWorkspace(dir).inventory;
+    } finally {
+      if (before === undefined) delete process.env.MCP_FRESH;
+      else process.env.MCP_FRESH = before;
+    }
+
+    assert.equal(readFileSync(cache, "utf8"), content);
+    assert.equal(inventory.state, "ok");
+    if (inventory.state !== "ok") return;
+    // A fine cache with MCP_FRESH set is still read; the other two are not usable and fall back to the config.
+    assert.equal(inventory.connectorsLive, Boolean(fresh));
+    assert.equal(process.env.MCP_FRESH, before);
+  });
+}
 
 test("when the machine reports no plugins, the config's plugins are listed instead", () => {
   const dir = scratchCopy("inventory");
