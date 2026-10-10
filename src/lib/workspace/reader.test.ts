@@ -747,3 +747,54 @@ test("parseDone on its own: a header-only file has no entries and nothing flagge
   );
   assert.deepEqual(flagged, []);
 });
+
+test("Project.start and finish are real YYYY-MM-DD dates; absent is null, anything else is null and flagged", () => {
+  const dir = scratchCopy("projects");
+  const block = (name: string, fields: string[]) =>
+    `## ${name}\n\n**Purpose:** Invented.\n${fields.map((f) => `${f}\n`).join("")}\n---\n\n`;
+  writeFileSync(
+    join(dir, "context", "PROJECTS.md"),
+    `# PROJECTS\n\n---\n\n${[
+      block("Both", ["**Start:** 2026-10-12", "**Finish:** 2026-12-01"]),
+      block("Neither", []),
+      block("Loose", ["**Start:** next spring", "**Finish:** 2026-02-30"]),
+    ].join("")}`,
+  );
+  const { projects, notUnderstood } = readWorkspace(dir);
+
+  assert.deepEqual(
+    projects.map((p) => [p.name, p.start, p.finish]),
+    [
+      ["Both", "2026-10-12", "2026-12-01"],
+      ["Neither", null, null],
+      ["Loose", null, null],
+    ],
+  );
+  assert.deepEqual(
+    notUnderstood.map((n) => [n.source, n.section, n.line]),
+    [
+      ["PROJECTS.md", "Loose", "**Start:** next spring"],
+      ["PROJECTS.md", "Loose", "**Finish:** 2026-02-30"],
+    ],
+  );
+});
+
+test("journalAll keeps every dated entry, old ones included, while journal keeps its 14-day window", () => {
+  const dir = scratchCopy("journal");
+  writeFileSync(
+    join(dir, "context", "JOURNAL.md"),
+    "# Journal\n\n---\n\n## 2026-10-09\n- Recent\n\n## 2026-03-01\n- Ancient\n  continued\n\n## 2026-03-01\n- Same day again\n",
+  );
+  const snap = readWorkspace(dir, new Date(2026, 9, 9, 12));
+
+  assert.deepEqual(
+    snap.journal.map((e) => e.date),
+    ["2026-10-09"],
+  );
+  assert.deepEqual(snap.journalAll, [
+    { date: "2026-10-09", bullets: ["Recent"] },
+    { date: "2026-03-01", bullets: ["Ancient continued"] },
+    { date: "2026-03-01", bullets: ["Same day again"] },
+  ]);
+  assert.deepEqual(readWorkspace(fixture("full")).journalAll, []);
+});

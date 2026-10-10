@@ -20,7 +20,7 @@ const utc = (day: string) => {
   const [y, m, d] = day.split("-").map(Number);
   return Date.UTC(y, m - 1, d);
 };
-const addDays = (day: string, n: number) => new Date(utc(day) + n * 86_400_000).toISOString().slice(0, 10);
+export const addDays = (day: string, n: number) => new Date(utc(day) + n * 86_400_000).toISOString().slice(0, 10);
 const daysBetween = (a: string, b: string) => Math.round((utc(b) - utc(a)) / 86_400_000);
 
 // The Monday of the calendar week a day falls in.
