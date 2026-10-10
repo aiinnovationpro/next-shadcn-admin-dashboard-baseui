@@ -22,19 +22,20 @@ export function ProgressView({
   projects,
   doneLog,
   doneSource,
-  now: nowIso,
+  today,
 }: {
   tasks: Task[];
   projects: Project[];
   doneLog: DoneLog;
   doneSource: Source | undefined;
-  now: string; // the server's clock, so the server render and the browser agree
+  today: string; // YYYY-MM-DD from the server, so the server render and the browser agree on the day and the week
 }) {
   const [filter, setFilter] = useState<TypeFilter>("all");
-  const now = useMemo(() => new Date(nowIso), [nowIso]);
   const shown = useMemo(() => applyFilter(filter, projects, tasks, doneLog), [filter, projects, tasks, doneLog]);
-  const summary = summarize(shown.tasks, shown.log, now);
-  const bars = projectBars(shown.projects, shown.tasks, now);
+  const summary = summarize(shown.tasks, shown.log, today);
+  const bars = projectBars(shown.projects, shown.tasks, today);
+  // A DONE.md that is missing is an empty log; one that exists but cannot be read leaves "done" unknown.
+  const doneReadable = doneSource?.state !== "unreadable" && doneSource?.state !== "offloaded";
 
   return (
     <div className="flex flex-col gap-4">
@@ -65,7 +66,7 @@ export function ProgressView({
         </Card>
       ) : (
         <>
-          <SummaryCards summary={summary} />
+          <SummaryCards summary={summary} doneReadable={doneReadable} />
           <Card size="sm">
             <CardHeader>
               <CardTitle>Open tasks by project</CardTitle>
@@ -82,7 +83,13 @@ export function ProgressView({
               )}
             </CardContent>
           </Card>
-          <DoneChart log={shown.log} allProjects={filter === "all"} doneSource={doneSource} now={now} />
+          <DoneChart
+            fullLog={doneLog}
+            log={shown.log}
+            allProjects={filter === "all"}
+            doneSource={doneSource}
+            today={today}
+          />
         </>
       )}
     </div>

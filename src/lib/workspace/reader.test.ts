@@ -641,7 +641,18 @@ test("a missing, offloaded or empty DONE.md gives an empty done log and a source
   writeFileSync(join(empty, "context", "DONE.md"), "");
   const emptySnap = readWorkspace(empty, now);
   assert.deepEqual(emptySnap.doneLog, emptyDoneLog);
-  assert.equal(emptySnap.sources.at(-1)?.state, "unreadable");
+  assert.equal(emptySnap.sources.at(-1)?.state, "ok"); // a log with nothing in it yet is not a broken file
+
+  const blank = scratchCopy("projects");
+  writeFileSync(join(blank, "context", "DONE.md"), " \n\n");
+  assert.equal(readWorkspace(blank, now).sources.at(-1)?.state, "ok");
+
+  const locked = scratchCopy("projects");
+  writeFileSync(join(locked, "context", "DONE.md"), "- 2026-10-09 · open 3\n");
+  chmodSync(join(locked, "context", "DONE.md"), 0o000);
+  const lockedSnap = readWorkspace(locked, now);
+  assert.equal(lockedSnap.sources.at(-1)?.state, "unreadable"); // only a file that cannot be read is an alarm
+  assert.deepEqual(lockedSnap.doneLog, emptyDoneLog);
 
   const offloaded = scratchCopy("projects");
   writeFileSync(join(offloaded, "context", ".DONE.md.icloud"), "");
@@ -672,12 +683,20 @@ test("DONE.md: both line shapes are read in order, header prose is ignored, othe
     { date: "2026-10-08", open: 12 },
     { date: "2026-10-09", open: 11 },
   ]);
-  // The line with no "- " is prose, not an entry, so it is not flagged; the two malformed "- " lines are.
+  // The header (everything before the first "- <digit>" line, backtick bullets included) is ignored. From there on
+  // every non-blank line that is not an entry is flagged: prose, a bad date, a bad open count, an open line with a
+  // third field (it is not a done entry for a project called "open 5").
   assert.deepEqual(
     notUnderstood.filter((n) => n.source === "DONE.md"),
     [
+      {
+        source: "DONE.md",
+        section: "(entry)",
+        line: "this line has no dash and is now flagged, because it sits among the entries",
+      },
       { source: "DONE.md", section: "(entry)", line: "- not a date · Alpha Project · Broken entry" },
       { source: "DONE.md", section: "(entry)", line: "- 2026-10-10 · open many" },
+      { source: "DONE.md", section: "(entry)", line: "- 2026-10-10 · open 5 · extra field" },
     ],
   );
 });
@@ -720,7 +739,10 @@ test("Project.type is work or personal when PROJECTS.md says so; absent or any o
 test("parseDone on its own: a header-only file has no entries and nothing flagged", () => {
   const flagged: string[] = [];
   assert.deepEqual(
-    parseDone("# DONE\n\n_Prose._\n", (_s, l) => flagged.push(l)),
+    parseDone(
+      "# DONE\n\n_Prose._\n\n- `- YYYY-MM-DD · <project> · <headline> #<category>`: a shape.\n- `- YYYY-MM-DD · open N`: another.\n\nStarted 2026-10-10.\n",
+      (_s, l) => flagged.push(l),
+    ),
     { done: [], openCounts: [] },
   );
   assert.deepEqual(flagged, []);

@@ -12,45 +12,43 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { formatDay } from "@/lib/workspace/dates";
-import { historyStart, weeklySeries } from "@/lib/workspace/progress";
+import { dayLabel, doneHistoryNote, MAX_WEEKS, weeklySeries } from "@/lib/workspace/progress";
 import type { DoneLog, Source } from "@/lib/workspace/reader";
+
+import { UnreadableSource } from "../../_workspace/workspace-page";
 
 const chartConfig = {
   done: { label: "Done per week", color: "var(--chart-4)" },
   open: { label: "Open tasks", color: "var(--chart-1)" },
 } satisfies ChartConfig;
 
-const SOURCE_NOTE: Record<Source["state"], string> = {
-  ok: "",
-  missing: "does not exist yet",
-  unreadable: "is empty or cannot be read",
-  offloaded: "is offloaded by iCloud and not downloaded",
-};
-
 export function DoneChart({
+  fullLog,
   log,
   allProjects,
   doneSource,
-  now,
+  today,
 }: {
-  log: DoneLog;
+  fullLog: DoneLog; // the whole log, whatever the filter: where the history starts never depends on it
+  log: DoneLog; // the log under the current filter
   allProjects: boolean; // /eod's open counts cover every project, so they are drawn only on the unfiltered view
   doneSource: Source | undefined;
-  now: Date;
+  today: string;
 }) {
-  const series = weeklySeries(log, now);
+  // A DONE.md that is missing is an empty log. One that exists but cannot be read is not "no history".
+  if (doneSource && (doneSource.state === "unreadable" || doneSource.state === "offloaded")) {
+    return <UnreadableSource source={doneSource} />;
+  }
+
+  const series = weeklySeries(log, today);
 
   if (series.length === 0) {
-    // No done entries (or none for this filter): say when the history starts instead of drawing an empty axis.
+    // Nothing to draw: say what is true instead of drawing an empty axis.
     return (
       <Card size="sm">
         <CardHeader>
           <CardTitle>Done per week</CardTitle>
-          <CardDescription>
-            {doneSource && doneSource.state !== "ok" && `DONE.md ${SOURCE_NOTE[doneSource.state]}. `}Done history starts{" "}
-            {formatDay(historyStart(log, now), now)}.
-          </CardDescription>
+          <CardDescription>{doneHistoryNote(fullLog, log, today)}</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -61,7 +59,7 @@ export function DoneChart({
       <CardHeader>
         <CardTitle>Done per week</CardTitle>
         <CardDescription>
-          Tasks done each calendar week (Monday to Sunday)
+          Tasks done each calendar week (Monday to Sunday), for the last {MAX_WEEKS} weeks at most
           {allProjects
             ? ", against the open count /eod recorded that week."
             : ". The open count covers every project, so it shows under All only."}
@@ -72,7 +70,7 @@ export function DoneChart({
           config={chartConfig}
           className="aspect-auto h-72 w-full"
           role="img"
-          aria-label={`Tasks done per week over ${series.length} weeks`}
+          aria-label={`Tasks done per week over ${series.length} weeks; the same numbers are in the table below`}
         >
           <ComposedChart data={series} margin={{ top: 0, left: 0, right: 12 }}>
             <CartesianGrid vertical={false} strokeOpacity={0.5} />
@@ -100,15 +98,16 @@ export function DoneChart({
               content={
                 <ChartTooltipContent
                   indicator="line"
-                  labelFormatter={(week) => `Week of ${formatDay(String(week), now)}`}
+                  labelFormatter={(week) => `Week of ${dayLabel(String(week), today)}`}
                 />
               }
             />
             <ChartLegend verticalAlign="top" content={<ChartLegendContent className="mb-3 justify-end" />} />
+            {/* linear: a smoothed curve would suggest values between the weeks */}
             <Line
               yAxisId="done"
               dataKey="done"
-              type="monotone"
+              type="linear"
               stroke="var(--color-done)"
               strokeWidth={1.6}
               dot={{ r: 3 }}
@@ -117,7 +116,7 @@ export function DoneChart({
               <Line
                 yAxisId="open"
                 dataKey="open"
-                type="monotone"
+                type="linear"
                 stroke="var(--color-open)"
                 strokeWidth={1.6}
                 dot={{ r: 3 }}
@@ -126,6 +125,25 @@ export function DoneChart({
             )}
           </ComposedChart>
         </ChartContainer>
+        <table className="sr-only">
+          <caption>Tasks done per week</caption>
+          <thead>
+            <tr>
+              <th scope="col">Week of</th>
+              <th scope="col">Done</th>
+              {allProjects && <th scope="col">Open tasks recorded</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {series.map((w) => (
+              <tr key={w.week}>
+                <th scope="row">{dayLabel(w.week, today)}</th>
+                <td>{w.done}</td>
+                {allProjects && <td>{w.open ?? "not recorded"}</td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </CardContent>
     </Card>
   );

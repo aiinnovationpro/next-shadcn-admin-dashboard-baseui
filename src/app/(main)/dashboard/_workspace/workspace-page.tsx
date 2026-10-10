@@ -12,6 +12,7 @@ import { LiveRefresh } from "./live-refresh";
 
 const MAIL_STATE = ".mail_cache.json";
 const MCP_CHECK = ".mcp_cache.json";
+const DONE_LOG = "DONE.md";
 
 // The two sources that only feed the Workspace view; the other views leave them out of their badge row.
 export const EQUIPMENT_SOURCES = ["config.yaml", MCP_CHECK];
@@ -22,10 +23,12 @@ const LABEL: Record<string, string> = {
   [MCP_CHECK]: "Connection check",
 };
 
-// A saved check that does not exist yet is a plain fact, not an alarm.
+// A saved check or a log that does not exist yet is a plain fact, not an alarm.
 function sourceVariant(s: Source) {
   if (s.state === "ok") return "outline";
-  return (s.name === MAIL_STATE || s.name === MCP_CHECK) && s.state === "missing" ? "secondary" : "destructive";
+  return (s.name === MAIL_STATE || s.name === MCP_CHECK || s.name === DONE_LOG) && s.state === "missing"
+    ? "secondary"
+    : "destructive";
 }
 
 // "STATUS.md: 2 min ago", or the state when the source cannot be read. Never a made-up age.

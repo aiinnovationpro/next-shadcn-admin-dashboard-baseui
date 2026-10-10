@@ -1,3 +1,4 @@
+import { todayIso } from "@/lib/workspace/progress";
 import { getSnapshot } from "@/lib/workspace/snapshot";
 
 import { WorkspacePage } from "../_workspace/workspace-page";
@@ -13,7 +14,7 @@ export default async function Page() {
         projects={snap.projects}
         doneLog={snap.doneLog}
         doneSource={snap.sources.find((s) => s.name === "DONE.md")}
-        now={new Date().toISOString()}
+        today={todayIso()} // worked out here once, so the browser cannot land on another day or week
       />
     </WorkspacePage>
   );
