@@ -1,9 +1,11 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDay } from "@/lib/workspace/dates";
 import type { Task } from "@/lib/workspace/reader";
@@ -14,6 +16,9 @@ import { StaleMark } from "../../_workspace/stale-mark";
 import { OpenInRepo } from "./open-in-repo";
 
 type Sort = "project" | "due";
+
+// A per-browser preference, so it lives in localStorage; storage can be missing or blocked, so every access is guarded.
+const NEW_WINDOW_KEY = "akutu.tasks.openInNewWindow";
 
 export function TasksTable({
   tasks,
@@ -29,6 +34,24 @@ export function TasksTable({
   const [project, setProject] = useState(initialProject);
   const [category, setCategory] = useState("");
   const [sort, setSort] = useState<Sort>("project");
+  const [newWindow, setNewWindow] = useState(true);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(NEW_WINDOW_KEY) === "false") setNewWindow(false);
+    } catch {
+      // storage blocked: keep the default (new window)
+    }
+  }, []);
+
+  const changeNewWindow = (on: boolean) => {
+    setNewWindow(on);
+    try {
+      localStorage.setItem(NEW_WINDOW_KEY, String(on));
+    } catch {
+      // storage blocked: the choice holds for this page only
+    }
+  };
 
   const projects = useMemo(() => [...new Set(tasks.map((t) => t.project))], [tasks]);
   const categories = useMemo(() => [...new Set(tasks.map((t) => t.category).filter((c): c is string => !!c))], [tasks]);
@@ -65,6 +88,10 @@ export function TasksTable({
         <span className="text-muted-foreground text-sm tabular-nums">
           {shown.length} of {tasks.length}
         </span>
+        <Label className="ml-auto font-normal">
+          <Switch checked={newWindow} onCheckedChange={changeNewWindow} />
+          Open in a new window
+        </Label>
       </div>
 
       <Table>
@@ -113,7 +140,7 @@ export function TasksTable({
                   )}
                 </TableCell>
                 <TableCell className="w-0 text-right">
-                  <OpenInRepo task={t} repos={repos[t.project] ?? [fallbackRepo]} />
+                  <OpenInRepo task={t} repos={repos[t.project] ?? [fallbackRepo]} newWindow={newWindow} />
                 </TableCell>
               </ExpandRow>
             </Fragment>
