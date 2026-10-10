@@ -38,6 +38,8 @@ export type Project = {
   phaseGroup: string; // the phase without its parenthetical note, for filtering
   stakeholder: string;
   timeline: string;
+  start: string | null; // YYYY-MM-DD from **Start:**; null when absent or not a real date
+  finish: string | null; // YYYY-MM-DD from **Finish:**, same rule
   blocker: string | null;
   hasBlocker: boolean;
   type: "work" | "personal" | null; // null: no **Type:** field, or a value other than these two
@@ -84,6 +86,7 @@ export type Snapshot = {
   inventory: Inventory;
   morning: Morning;
   journal: JournalEntry[]; // entries from the last 14 days, newest first, at most 10
+  journalAll: JournalEntry[]; // every dated entry, in file order: what the Calendar looks up by date
   doneLog: DoneLog;
 };
 
@@ -112,8 +115,8 @@ const JOURNAL_DAYS = 14; // an entry exactly this many days old is still kept
 
 // "## YYYY-MM-DD" opens an entry, "- " opens a bullet, an indented line continues it, "###" and "---" are ignored.
 // Anything else under an entry, and any "## " heading that is no date, is flagged. The text before the first
-// "## " is the file's own header. Only entries from the last 14 days are read, and of those the newest 10 are kept.
-function parseJournal(text: string, now: Date, flag: Flag): JournalEntry[] {
+// "## " is the file's own header. This reads every entry; recentJournal narrows them for the Workspace page.
+function scanJournal(text: string, flag: Flag): (JournalEntry & { stray: string[] })[] {
   const entries: (JournalEntry & { stray: string[] })[] = [];
   let current: (typeof entries)[number] | null = null;
   let inEntries = false; // past the file header
@@ -133,6 +136,11 @@ function parseJournal(text: string, now: Date, flag: Flag): JournalEntry[] {
       else current.stray.push(line);
     }
   }
+  return entries;
+}
+
+// Only entries from the last 14 days, and of those the newest 10. Lines it cannot place are flagged in each of them.
+function recentJournal(entries: ReturnType<typeof scanJournal>, now: Date, flag: Flag): JournalEntry[] {
   const earliest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - JOURNAL_DAYS);
   const cutoff = iso(earliest.getFullYear(), earliest.getMonth() + 1, earliest.getDate());
   const inWindow = entries.filter((e) => e.date >= cutoff).sort((a, b) => b.date.localeCompare(a.date));
@@ -215,6 +223,7 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
       recentlyDone: [],
       projects: [],
       journal: [],
+      journalAll: [],
       doneLog: { done: [], openCounts: [] },
       notUnderstood: [],
       inventory: loadInventory(root),
@@ -247,6 +256,15 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
     else mailCache.source = { name: mailCache.source.name, state: "unreadable", ageMinutes: null };
     morning.state = mailCache.source.state;
   }
+  // parsed in the order the "not understood" list reports them: projects, tasks, inbox, recently done, journal, done log
+  const projects = parseProjects(projectsFile.text, notUnderstood);
+  const tasks = parseOpenTasks(sectionBody(status, "Tasks (open)"), now, flag);
+  const inbox = parseInbox(sectionBody(status, "Inbox"), now, flag);
+  const recentlyDone = parseRecentlyDone(sectionBody(status, "Recently Done"), now, flag);
+  const flagJournal: Flag = (section, line) => notUnderstood.push({ source: "JOURNAL.md", section, line });
+  const journalEntries = scanJournal(journalFile.text, flagJournal);
+  const journal = recentJournal(journalEntries, now, flagJournal);
+  const doneLog = parseDone(doneFile.text, (section, line) => notUnderstood.push({ source: "DONE.md", section, line }));
   return {
     workspaceFound: true,
     sources: [
@@ -258,16 +276,15 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
       mcpCache.source,
       doneFile.source,
     ],
-    projects: parseProjects(projectsFile.text, notUnderstood),
+    projects,
     currentFocus: sectionBody(status, "Current Focus").join("\n\n"),
     dayPlan: dayPlan.length > 0 ? dayPlan : null,
-    tasks: parseOpenTasks(sectionBody(status, "Tasks (open)"), now, flag),
-    inbox: parseInbox(sectionBody(status, "Inbox"), now, flag),
-    recentlyDone: parseRecentlyDone(sectionBody(status, "Recently Done"), now, flag),
-    journal: parseJournal(journalFile.text, now, (section, line) =>
-      notUnderstood.push({ source: "JOURNAL.md", section, line }),
-    ),
-    doneLog: parseDone(doneFile.text, (section, line) => notUnderstood.push({ source: "DONE.md", section, line })),
+    tasks,
+    inbox,
+    recentlyDone,
+    journal,
+    journalAll: journalEntries.map(({ date, bullets }) => ({ date, bullets })),
+    doneLog,
     notUnderstood,
     inventory: loadInventory(root),
     morning,
@@ -284,12 +301,21 @@ const PROJECT_FIELDS: Record<string, string> = {
   Phase: "phase",
   Stakeholder: "stakeholder",
   Timeline: "timeline",
+  Start: "start",
+  Finish: "finish",
   Blocker: "blocker",
   Risk: "risk",
   Delta: "delta",
 };
 
 const PROJECT_TYPES = ["work", "personal"];
+
+function isRealDate(text: string): boolean {
+  const m = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return d.toISOString().slice(0, 10) === text;
+}
 
 // Level-two headings are project blocks, except "History" (finished work). Fields are "**Key:** value" lines.
 function parseProjects(text: string, notUnderstood: NotUnderstood[]): Project[] {
@@ -310,6 +336,9 @@ function parseProjects(text: string, notUnderstood: NotUnderstood[]): Project[] 
       // A Type that is not work or personal is flagged and not kept, so the project's type stays null.
       if (field[1] === "Type" && !PROJECT_TYPES.includes(field[2].trim())) {
         notUnderstood.push({ source: "PROJECTS.md", section: current.name, line: t });
+      } else if ((field[1] === "Start" || field[1] === "Finish") && !isRealDate(field[2].trim())) {
+        // a Start or Finish that is no real YYYY-MM-DD date is flagged and not kept
+        notUnderstood.push({ source: "PROJECTS.md", section: current.name, line: t });
       } else current.fields[PROJECT_FIELDS[field[1]]] = field[2].trim();
     } else {
       notUnderstood.push({ source: "PROJECTS.md", section: current.name, line });
@@ -327,6 +356,8 @@ function parseProjects(text: string, notUnderstood: NotUnderstood[]): Project[] 
       phaseGroup: (f.phase ?? "").split(/\s*[(/;]/)[0].trim(),
       stakeholder: f.stakeholder ?? "",
       timeline: f.timeline ?? "",
+      start: f.start ?? null,
+      finish: f.finish ?? null,
       blocker: f.blocker ?? null,
       hasBlocker: Boolean(f.blocker) && !/^(none|no blocker|n\/a)\b/i.test(f.blocker),
       type: (f.type as Project["type"]) ?? null,

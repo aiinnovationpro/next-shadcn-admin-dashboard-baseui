@@ -99,6 +99,8 @@ const project = (name: string, type: Project["type"]): Project => ({
   phaseGroup: "",
   stakeholder: "",
   timeline: "",
+  start: null,
+  finish: null,
   blocker: null,
   hasBlocker: false,
   type,

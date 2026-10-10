@@ -1,6 +1,6 @@
 # Spec: Akutu dashboard on shadcn
 
-Written Thu Oct 8, 2026. Status: ready for build, phase 1. Amended Sat Oct 10, 2026: Progress view (a seventh view).
+Written Thu Oct 8, 2026. Status: ready for build, phase 1. Amended Sat Oct 10, 2026: Progress view (a seventh view), and the Calendar rebuilt as a month view.
 
 ## Problem Statement
 
@@ -76,7 +76,7 @@ Rollout in three phases:
 
 33. As Ebenezer, I want the morning briefing lead and text from the last `/morning` run on the Today view, so that the narrative is still there.
 34. As Ebenezer, I want the morning briefing shown with its date and hidden behind a "from [day]" label when it is not today's, so that an old briefing is not read as today's.
-35. As Ebenezer, I want today's meetings as a timeline on the Calendar view, with the meeting briefings that `/morning` prepared, so that the calendar works as it does today.
+35. As Ebenezer, I want today's meetings as a timeline, with the meeting briefings that `/morning` prepared, so that the calendar works as it does today. (Amended 10 Oct 2026: the timeline is now the Meetings part of the Calendar's day panel for today, Stories 61 to 70; it is no longer the whole Calendar page.)
 36. As Ebenezer, I want the mail status line from the morning run, so that I know whether mail was checked.
 37. As Ebenezer, I want the recent journal entries on the Projects & Notes view, so that I can see what happened lately.
 
@@ -97,6 +97,19 @@ Rollout in three phases:
 58. As Ebenezer, I want the line chart replaced by "Done history starts <date>" while DONE.md has no done entries, so that I never see a blank axis. The date is the earliest date in DONE.md, or today when the file is missing or empty.
 59. As Ebenezer, I want a DONE.md that cannot be read to show the same message as other unreadable files, and a line in it that matches neither entry shape shown raw as "not understood", so that a broken log is never read as "nothing done".
 60. As Ebenezer, I want the Progress view to show no ranking, "top 3" or "focus on" anywhere, so that Rule 10 holds on this page too.
+
+### Calendar month view (added 10 Oct 2026)
+
+61. As Ebenezer, I want the Calendar to be a regular month grid (seven columns, weeks starting on Monday, in local time) with the days of the neighbouring months filling the first and last week, so that it reads like any calendar.
+62. As Ebenezer, I want previous month, next month and Today buttons, and the selected day to start on today, so that I can move around and always get back.
+63. As Ebenezer, I want every day to be a button with a text label and keyboard control (Tab into the grid, arrow keys to move by a day or a week), so that the grid works without a mouse and for a screen reader.
+64. As Ebenezer, I want each day cell to show only neutral markers: the count of tasks due, the count done, a dot when the journal has an entry, and a flag when a project starts or finishes, so that I see where things are without any ranking or judgement (Rule 10, Stories 14 and 15 hold). A task whose due date has passed is shown as "Past due", plainly, as on the Tasks page.
+65. As Ebenezer, I want a panel for the selected day (below the grid on a phone) with the sections Due, Done, Journal, Projects and Meetings, empty sections hidden, and one plain line ("Nothing recorded for this day.") when the whole day is empty, so that I see everything about a day in one place.
+66. As Ebenezer, I want Due to list the open tasks whose due date is that day, with project, category, waiting-on and the context line on click, and, for a past day, to say they are still open, so that I know what I had to do that day and what is still hanging.
+67. As Ebenezer, I want Done to list the DONE.md entries of that day, and, for a day before the first entry in DONE.md, the line "Done history starts <date>" (or "Done history has not started yet" while the file has no entries), so that an empty yesterday is never read as "nothing was done". The journal and due dates still show for those days.
+68. As Ebenezer, I want Journal to list the bullets of that date from JOURNAL.md for any date in the file, not only the last 14 days, so that I can look back at what happened.
+69. As Ebenezer, I want optional `**Start:**` and `**Finish:**` fields (YYYY-MM-DD) on a PROJECTS.md block to show on the Projects part of those days, so that I can track when a project starts and finishes. A value that is not a real date is shown as "not understood". Projects without the fields show nothing, and the free-text Timeline field is left as it is.
+70. As Ebenezer, I want Meetings to show today's timeline (the Today part of Story 35, with its briefings) only when the selected day is today, and for any other day one line saying meetings are only known for today, from the morning briefing and that the app does not fetch the calendar, so that an old or a future day never shows a made-up agenda.
 
 ### Running it
 
@@ -123,7 +136,7 @@ Rollout in three phases:
 
 **Live update by file watching.** The app watches the workspace's context folder and tells the open page to refresh when a file changes. The current dashboard already reloads itself; this keeps that behaviour.
 
-**Formats are read as they are.** The reader follows the formats documented in the headers of STATUS.md and PROJECTS.md (task headline plus indented context line, `(due DD.MM.)`, `(waiting on X)`, `#category`, ⚠️; project blocks under level-two headings with Purpose, Status, Phase, Stakeholder, Timeline, Blocker, Risk, Delta). No workspace file format changes for this app. Due dates without a year resolve to the nearest sensible year around today.
+**Formats are read as they are.** The reader follows the formats documented in the headers of STATUS.md and PROJECTS.md (task headline plus indented context line, `(due DD.MM.)`, `(waiting on X)`, `#category`, ⚠️; project blocks under level-two headings with Purpose, Status, Phase, Stakeholder, Timeline, Blocker, Risk, Delta). No workspace file format changes for this app, apart from the optional PROJECTS.md fields `**Type:**`, `**Start:**` and `**Finish:**`. Due dates without a year resolve to the nearest sensible year around today.
 
 **Tolerant parsing, loud failure.** A line in a known section that does not match the expected shape goes into the "not understood" list and is shown raw. A file that exists but cannot be read (for example an iCloud placeholder that has been offloaded) is reported as unreadable, never as empty. A missing workspace folder is a full-page error.
 
@@ -138,6 +151,8 @@ Rollout in three phases:
 **The Progress view and Rule 10 (10 Oct 2026).** Overdue and done counts are facts computed from dates and from the done log, not a ranking: they say what is, and nothing in the view says what to do first. So the Progress view may show them, in the cards and the charts, and Rule 10 and Stories 14 and 15 still hold: no top 3, no focus widget, no judging words, no ordering of projects or tasks that implies priority. Story 15 stays as written for the other views; the Progress view's cards follow the same principle, numbers that describe.
 
 **The done log and the Type field (10 Oct 2026).** The reader gains the done log: it reads `context/DONE.md`, an append-only file of lines starting with `- `, newest last. Two shapes are understood: `- YYYY-MM-DD · <project> · <task headline> #<category>` (the category is optional) is a completed task, and `- YYYY-MM-DD · open N` is the open-task count at the close of a day, written once per `/eod`. That second shape is the open-count series, so no new writer is needed. The header prose above the entries is not data and is never flagged. A line starting with `- ` that matches neither shape goes to "not understood" (source DONE.md). A missing or empty DONE.md gives an empty log, not an error; an unreadable or offloaded one is reported as unreadable like any source. The reader also reads `**Type:** work | personal` from each project block. An absent field is no type; any other value is no type and is listed as "not understood". Work and Personal filter on explicit values only. Done history begins when DONE.md begins; there is no backfill.
+
+**The Calendar month view (10 Oct 2026).** A custom grid, not a date-picker library, because each cell has to carry markers. One pure module (`src/lib/workspace/calendar.ts`) builds the month's weeks and a day-to-items index (due, done, journal, project starts and finishes); the page computes today once on the server and passes it down, so the browser never rebuilds "now". The reader gains two things for it, without changing what the Workspace page shows: `journalAll` (every dated JOURNAL.md entry; `journal` keeps its 14 days and 10 entries) and `Project.start` / `Project.finish`. Meetings stay the morning cache's today-only agenda. The month view is read-only like every other view.
 
 **Progress numbers, as defined.** Weeks are calendar weeks starting Monday, in local time; "done this week" is the current one. Each open task is in exactly one bucket, first match wins: overdue (due before today), due in 7 days (today to today plus 7, inclusive), waiting (waiting-on set), later (due beyond 7 days), no date. The buckets add up to Open. Urgent is the first two buckets together. Behind is the overdue count plus the age of the oldest overdue task in days.
 
@@ -186,9 +201,10 @@ One kind of action is allowed because it changes nothing (10 Oct 2026): `vscode:
 
 - Any write from the dashboard: ticking off tasks, adopting inbox items, editing projects. All of that stays in the chat. The Progress view reads DONE.md and never writes it.
 - Deploying the app anywhere, or opening it to other devices or people.
-- Changing the format of STATUS.md, PROJECTS.md, JOURNAL.md or config.yaml, apart from the optional `**Type:**` field on PROJECTS.md blocks that the Progress view reads.
+- Changing the format of STATUS.md, PROJECTS.md, JOURNAL.md or config.yaml, apart from the optional `**Type:**` field on PROJECTS.md blocks that the Progress view reads and the optional `**Start:**` and `**Finish:**` fields that the Calendar reads.
 - Changing `/morning` in phases 1 and 2. Restructuring the mail cache into structured fields.
-- Fetching mail or calendar from the app. Mail and calendar state come only from the morning cache.
+- Fetching mail or calendar from the app. Mail and calendar state come only from the morning cache; so the Calendar's Meetings are known for today only, and past or future days show a line saying so.
+- On the Calendar: a backfill of done history from before DONE.md existed, meetings for any day but today, week or agenda layouts, and any ranking or priority marker on a day.
 - Showing archived projects, or HR, salary or performance information. None of that is in the source files the dashboard reads, and it stays that way.
 - Making the app part of the shareable workspace package. This is Ebenezer's machine only.
 - Retiring the old dashboard before Ebenezer makes the switch decision.
