@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell } from "@/components/ui/table";
-import { getSnapshot } from "@/lib/workspace/snapshot";
+import { getProjectRepos, getSnapshot } from "@/lib/workspace/snapshot";
 
 import { BoldText } from "../_workspace/bold-text";
 import { ExpandRow } from "../_workspace/expand-row";
@@ -9,7 +9,11 @@ import { WorkspacePage } from "../_workspace/workspace-page";
 import { TasksTable } from "./_components/tasks-table";
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
-  const [snap, { project = "" }] = await Promise.all([getSnapshot(), searchParams]);
+  const [snap, { repos, fallback }, { project = "" }] = await Promise.all([
+    getSnapshot(),
+    getProjectRepos(),
+    searchParams,
+  ]);
 
   return (
     <WorkspacePage snap={snap} title="Tasks" needs={["STATUS.md"]}>
@@ -43,7 +47,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
         </Card>
       )}
 
-      {snap.tasks.length > 0 && <TasksTable tasks={snap.tasks} initialProject={project} />}
+      {snap.tasks.length > 0 && (
+        <TasksTable tasks={snap.tasks} initialProject={project} repos={repos} fallbackRepo={fallback} />
+      )}
 
       {snap.recentlyDone.length > 0 && (
         <div className="flex flex-col gap-2">

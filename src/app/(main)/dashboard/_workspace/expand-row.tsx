@@ -23,7 +23,9 @@ export function ExpandRow({
       <TableRow
         className={cn(detail && "cursor-pointer")}
         aria-expanded={detail ? open : undefined}
-        onClick={detail ? (e) => !(e.target as HTMLElement).closest("a") && setOpen(!open) : undefined}
+        onClick={
+          detail ? (e) => !(e.target as HTMLElement).closest("a, button, [role=menuitem]") && setOpen(!open) : undefined
+        }
       >
         {children}
       </TableRow>

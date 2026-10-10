@@ -7,13 +7,25 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDay } from "@/lib/workspace/dates";
 import type { Task } from "@/lib/workspace/reader";
+import type { Repo } from "@/lib/workspace/repos";
 
 import { ExpandRow } from "../../_workspace/expand-row";
 import { StaleMark } from "../../_workspace/stale-mark";
+import { OpenInRepo } from "./open-in-repo";
 
 type Sort = "project" | "due";
 
-export function TasksTable({ tasks, initialProject }: { tasks: Task[]; initialProject: string }) {
+export function TasksTable({
+  tasks,
+  initialProject,
+  repos,
+  fallbackRepo,
+}: {
+  tasks: Task[];
+  initialProject: string;
+  repos: Record<string, Repo[]>;
+  fallbackRepo: Repo;
+}) {
   const [project, setProject] = useState(initialProject);
   const [category, setCategory] = useState("");
   const [sort, setSort] = useState<Sort>("project");
@@ -22,7 +34,7 @@ export function TasksTable({ tasks, initialProject }: { tasks: Task[]; initialPr
   const categories = useMemo(() => [...new Set(tasks.map((t) => t.category).filter((c): c is string => !!c))], [tasks]);
 
   const showProject = sort === "due";
-  const columnCount = showProject ? 4 : 3;
+  const columnCount = showProject ? 5 : 4;
   const shown = tasks.filter((t) => (!project || t.project === project) && (!category || t.category === category));
   const ordered =
     sort === "due" ? [...shown].sort((a, b) => (a.due ?? "9999-12-31").localeCompare(b.due ?? "9999-12-31")) : shown;
@@ -63,6 +75,9 @@ export function TasksTable({ tasks, initialProject }: { tasks: Task[]; initialPr
             {showProject && <TableHead>Project</TableHead>}
             <TableHead>Category</TableHead>
             <TableHead>Due</TableHead>
+            <TableHead>
+              <span className="sr-only">Open</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -96,6 +111,9 @@ export function TasksTable({ tasks, initialProject }: { tasks: Task[]; initialPr
                       {t.dueStatus === "today" && <Badge>Due today</Badge>}
                     </span>
                   )}
+                </TableCell>
+                <TableCell className="w-0 text-right">
+                  <OpenInRepo task={t} repos={repos[t.project] ?? [fallbackRepo]} />
                 </TableCell>
               </ExpandRow>
             </Fragment>
