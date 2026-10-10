@@ -1,6 +1,8 @@
 "use client";
 
-import { ChevronDown, Play } from "lucide-react";
+import { useEffect, useState } from "react";
+
+import { ChevronDown, Play, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,10 +14,8 @@ import {
 import type { Task } from "@/lib/workspace/reader";
 import type { Repo } from "@/lib/workspace/repos";
 
-// The Claude Code extension's URI handler has no folder parameter: it opens in the focused window.
-// So the folder opens first, and the prompt follows once that window is focused. A new window also has to
-// finish starting before the extension wakes (activation: onStartupFinished), so it gets the longer wait.
-const CLAUDE_DELAY_MS = { sameWindow: 1500, newWindow: 4000 };
+// How long the button offers "Send to Claude" after the folder link, before going back to "Start".
+const SEND_WINDOW_MS = 120_000;
 
 function promptFor(task: Task) {
   const context = task.context ? ` Context: ${task.context}` : "";
@@ -26,33 +26,58 @@ function promptFor(task: Task) {
 }
 
 // Links only: the browser hands vscode:// to VS Code. Nothing is written and the server starts no process.
-// The prompt is prefilled, not sent, so ingested text in a task is read before anything runs. It is also
-// copied to the clipboard, so a panel that opens empty is one paste away.
+// Two clicks, timed by the person, not by a delay: the Claude Code extension's URI handler has no folder
+// parameter and goes to the last-focused VS Code window, and a new window takes a few seconds before the
+// extension is awake (activation: onStartupFinished; 3.5 s measured on 10 Oct). A timer lost that race.
 // `windowId=_blank` is VS Code's own "open in a new window" flag for protocol links (app#handleProtocolUrl).
-function open(repo: Repo, task: Task, newWindow: boolean) {
-  const prompt = promptFor(task);
+function openFolder(repo: Repo, newWindow: boolean, prompt: string) {
   navigator.clipboard?.writeText(prompt).catch(() => {
-    // clipboard refused (no focus or permission): the prefilled panel still carries the prompt
+    // clipboard refused (no focus or permission): "Send to Claude" still carries the prompt
   });
   window.location.href = `vscode://file${encodeURI(repo.path)}/${newWindow ? "?windowId=_blank" : ""}`;
-  window.setTimeout(
-    () => {
-      window.location.href = `vscode://anthropic.claude-code/open?prompt=${encodeURIComponent(prompt)}`;
-    },
-    newWindow ? CLAUDE_DELAY_MS.newWindow : CLAUDE_DELAY_MS.sameWindow,
-  );
+}
+
+// The prompt is prefilled, not sent, so ingested text in a task is read before anything runs.
+function sendToClaude(prompt: string) {
+  window.location.href = `vscode://anthropic.claude-code/open?prompt=${encodeURIComponent(prompt)}`;
 }
 
 export function OpenInRepo({ task, repos, newWindow }: { task: Task; repos: Repo[]; newWindow: boolean }) {
-  const label = `Start "${task.headline}" in VS Code with Claude`;
-  if (repos.length === 1) {
+  const [opened, setOpened] = useState(false);
+  const prompt = promptFor(task);
+
+  useEffect(() => {
+    if (!opened) return;
+    const timer = window.setTimeout(() => setOpened(false), SEND_WINDOW_MS);
+    return () => window.clearTimeout(timer);
+  }, [opened]);
+
+  const start = (repo: Repo) => {
+    openFolder(repo, newWindow, prompt);
+    setOpened(true);
+  };
+
+  if (opened) {
     return (
       <Button
         size="sm"
-        aria-label={label}
-        title={`Open in ${repos[0].name}`}
-        onClick={() => open(repos[0], task, newWindow)}
+        aria-label={`Send "${task.headline}" to Claude in the window that just opened`}
+        title="Click once VS Code has opened the folder"
+        onClick={() => {
+          sendToClaude(prompt);
+          setOpened(false);
+        }}
       >
+        <Send />
+        Send to Claude
+      </Button>
+    );
+  }
+
+  const label = `Start "${task.headline}": open its repo in VS Code`;
+  if (repos.length === 1) {
+    return (
+      <Button size="sm" aria-label={label} title={`Open in ${repos[0].name}`} onClick={() => start(repos[0])}>
         <Play />
         Start
       </Button>
@@ -68,7 +93,7 @@ export function OpenInRepo({ task, repos, newWindow }: { task: Task; repos: Repo
       <DropdownMenuContent align="end" className="w-auto min-w-48">
         {/* w-auto: repo folder names stay on one line */}
         {repos.map((r) => (
-          <DropdownMenuItem key={r.path} onClick={() => open(r, task, newWindow)}>
+          <DropdownMenuItem key={r.path} onClick={() => start(r)}>
             {r.name}
           </DropdownMenuItem>
         ))}
