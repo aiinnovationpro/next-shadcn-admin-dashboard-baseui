@@ -1,4 +1,4 @@
-import { readWorkspace } from "./reader.ts";
+import { parseDone, readWorkspace } from "./reader.ts";
 import assert from "node:assert/strict";
 import { chmodSync, cpSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -104,6 +104,7 @@ test("each source reports its state and age; a missing mail cache is reported, n
     { name: "JOURNAL.md", state: "missing", ageMinutes: null },
     { name: "config.yaml", state: "missing", ageMinutes: null },
     { name: ".mcp_cache.json", state: "missing", ageMinutes: null },
+    { name: "DONE.md", state: "missing", ageMinutes: null },
   ]);
 
   writeFileSync(join(dir, "context", ".mail_cache.json"), "{}");
@@ -625,4 +626,124 @@ test("malformed journal lines are flagged in every entry inside the window, past
   assert.equal(flagged.length, 12);
   assert.ok(flagged.includes("Stray 11")); // the 12th entry is past the ten shown but was read
   assert.ok(!flagged.includes("Stray old")); // outside 14 days, never read for display
+});
+
+const emptyDoneLog = { done: [], openCounts: [] };
+
+test("a missing, offloaded or empty DONE.md gives an empty done log and a source state, never an error", () => {
+  const now = new Date(2026, 9, 10, 12);
+  const missing = readWorkspace(fixture("projects"), now);
+  assert.deepEqual(missing.doneLog, emptyDoneLog);
+  assert.equal(missing.sources.at(-1)?.name, "DONE.md");
+  assert.equal(missing.sources.at(-1)?.state, "missing");
+
+  const empty = scratchCopy("projects");
+  writeFileSync(join(empty, "context", "DONE.md"), "");
+  const emptySnap = readWorkspace(empty, now);
+  assert.deepEqual(emptySnap.doneLog, emptyDoneLog);
+  assert.equal(emptySnap.sources.at(-1)?.state, "ok"); // a log with nothing in it yet is not a broken file
+
+  const blank = scratchCopy("projects");
+  writeFileSync(join(blank, "context", "DONE.md"), " \n\n");
+  assert.equal(readWorkspace(blank, now).sources.at(-1)?.state, "ok");
+
+  const locked = scratchCopy("projects");
+  writeFileSync(join(locked, "context", "DONE.md"), "- 2026-10-09 · open 3\n");
+  chmodSync(join(locked, "context", "DONE.md"), 0o000);
+  const lockedSnap = readWorkspace(locked, now);
+  assert.equal(lockedSnap.sources.at(-1)?.state, "unreadable"); // only a file that cannot be read is an alarm
+  assert.deepEqual(lockedSnap.doneLog, emptyDoneLog);
+
+  const offloaded = scratchCopy("projects");
+  writeFileSync(join(offloaded, "context", ".DONE.md.icloud"), "");
+  const offSnap = readWorkspace(offloaded, now);
+  assert.deepEqual(offSnap.doneLog, emptyDoneLog);
+  assert.equal(offSnap.sources.at(-1)?.state, "offloaded");
+  assert.deepEqual(offSnap.notUnderstood, []);
+
+  assert.deepEqual(readWorkspace(join(tmpdir(), "akutu-no-such-folder")).doneLog, emptyDoneLog);
+});
+
+test("DONE.md: both line shapes are read in order, header prose is ignored, other '- ' lines are flagged", () => {
+  const { doneLog, notUnderstood, sources } = readWorkspace(fixture("done"), new Date(2026, 9, 10, 12));
+
+  assert.equal(sources.at(-1)?.state, "ok");
+  assert.deepEqual(doneLog.done, [
+    { date: "2026-10-08", project: "Alpha Project", headline: "Send the revised agreement", category: "comms" },
+    { date: "2026-10-09", project: "Beta Venture", headline: "Book the cohort kickoff", category: null },
+    { date: "2026-10-09", project: "Alpha Project", headline: "Headline with a · dot inside", category: "deep-work" },
+    {
+      date: "2026-10-10",
+      project: "Alpha Project",
+      headline: "Unknown category kept in the headline #weekend",
+      category: null,
+    },
+  ]);
+  assert.deepEqual(doneLog.openCounts, [
+    { date: "2026-10-08", open: 12 },
+    { date: "2026-10-09", open: 11 },
+  ]);
+  // The header (everything before the first "- <digit>" line, backtick bullets included) is ignored. From there on
+  // every non-blank line that is not an entry is flagged: prose, a bad date, a bad open count, an open line with a
+  // third field (it is not a done entry for a project called "open 5").
+  assert.deepEqual(
+    notUnderstood.filter((n) => n.source === "DONE.md"),
+    [
+      {
+        source: "DONE.md",
+        section: "(entry)",
+        line: "this line has no dash and is now flagged, because it sits among the entries",
+      },
+      { source: "DONE.md", section: "(entry)", line: "- not a date · Alpha Project · Broken entry" },
+      { source: "DONE.md", section: "(entry)", line: "- 2026-10-10 · open many" },
+      { source: "DONE.md", section: "(entry)", line: "- 2026-10-10 · open 5 · extra field" },
+    ],
+  );
+});
+
+test("Project.type is work or personal when PROJECTS.md says so; absent or any other value is null, the other value flagged", () => {
+  const dir = scratchCopy("projects");
+  const block = (name: string, type?: string) =>
+    `## ${name}\n\n**Purpose:** Invented.\n${type === undefined ? "" : `**Type:** ${type}\n`}\n---\n\n`;
+  writeFileSync(
+    join(dir, "context", "PROJECTS.md"),
+    `# PROJECTS\n\n---\n\n${[
+      block("Works", "work"),
+      block("Plays", "personal"),
+      block("Blank"),
+      block("Odd", "hobby"),
+      block("Shouty", "Work"),
+    ].join("")}`,
+  );
+  const { projects, notUnderstood } = readWorkspace(dir);
+
+  assert.deepEqual(
+    projects.map((p) => [p.name, p.type]),
+    [
+      ["Works", "work"],
+      ["Plays", "personal"],
+      ["Blank", null],
+      ["Odd", null],
+      ["Shouty", null],
+    ],
+  );
+  assert.deepEqual(
+    notUnderstood.map((n) => [n.source, n.section, n.line]),
+    [
+      ["PROJECTS.md", "Odd", "**Type:** hobby"],
+      ["PROJECTS.md", "Shouty", "**Type:** Work"],
+    ],
+  );
+});
+
+test("parseDone on its own: a header-only file has no entries and nothing flagged", () => {
+  const flagged: string[] = [];
+  assert.deepEqual(
+    parseDone(
+      "# DONE\n\n_Prose._\n\n- `- YYYY-MM-DD · <project> · <headline> #<category>`: a shape.\n- `- YYYY-MM-DD · open N`: another.\n\nStarted 2026-10-10.\n",
+      (_s, l) => flagged.push(l),
+    ),
+    { done: [], openCounts: [] },
+  );
+  assert.deepEqual(flagged, []);
 });

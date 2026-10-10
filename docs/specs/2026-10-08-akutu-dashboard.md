@@ -1,6 +1,6 @@
 # Spec: Akutu dashboard on shadcn
 
-Written Thu Oct 8, 2026. Status: ready for build, phase 1.
+Written Thu Oct 8, 2026. Status: ready for build, phase 1. Amended Sat Oct 10, 2026: Progress view (a seventh view).
 
 ## Problem Statement
 
@@ -23,6 +23,7 @@ Rollout in three phases:
 
 1. **Tasks and Projects.** The app reads STATUS.md and PROJECTS.md and shows the Tasks, Inbox and Projects views. This proves the riskiest part: reading hand-edited markdown reliably.
 2. **Today, Calendar, Workspace, Start Here.** The app reads the morning mail cache, the journal and the workspace inventory, which completes the six views.
+   **Progress (added 10 Oct 2026).** A seventh view, built after phase 2 on the same reader. It needs two things from the workspace: the append-only done log `context/DONE.md` and a `**Type:**` field on each PROJECTS.md block. Neither blocks phases 1 to 3.
 3. **Switch.** Ebenezer decides the app has shown no bugs. Session start opens the app instead of the HTML file, mid-day regeneration stops, and the old template is archived for rollback.
 
 ## User Stories
@@ -85,6 +86,18 @@ Rollout in three phases:
 39. As Ebenezer, I want the Workspace view built from the same shared workspace reader the existing dashboard uses, so that the two can never disagree about the equipment.
 40. As Ebenezer, I want the Start Here view with the walkthrough and setup overview, so that the orientation page survives the move.
 
+### Progress (added 10 Oct 2026)
+
+52. As Ebenezer, I want a Progress view with four cards (Open, Urgent, Behind, Done this week), so that I see how much is left, how much is due soon, how far behind I am and how much moved, on one screen.
+53. As Ebenezer, I want Open to count every open task and Urgent to count the tasks that are overdue or due within the next 7 days, so that the two numbers follow from the dates and nothing else.
+54. As Ebenezer, I want Behind to show the number of overdue tasks and the age in days of the oldest one (for example "6 overdue, oldest 64 days"), so that how far behind is a fact I can read.
+55. As Ebenezer, I want a stacked bar per project that splits its open tasks into overdue, due in 7 days, waiting, later and no date, so that I see where things stand in categories. Each task falls in exactly one bucket, taken in that order, and the buckets add up to Open.
+56. As Ebenezer, I want a line chart of tasks done per calendar week (weeks start on Monday) against the open count, so that I see whether the work is moving as the list shrinks or grows.
+57. As Ebenezer, I want an All / Work / Personal toggle, so that I can look at one side of my life at a time. A project with no `**Type:**` field, or an unrecognised value, appears under All only and its unrecognised value is shown as "not understood".
+58. As Ebenezer, I want the line chart replaced by "Done history starts <date>" while DONE.md has no done entries, so that I never see a blank axis. The date is the earliest date in DONE.md, or today when the file is missing or empty.
+59. As Ebenezer, I want a DONE.md that cannot be read to show the same message as other unreadable files, and a line in it that matches neither entry shape shown raw as "not understood", so that a broken log is never read as "nothing done".
+60. As Ebenezer, I want the Progress view to show no ranking, "top 3" or "focus on" anywhere, so that Rule 10 holds on this page too.
+
 ### Running it
 
 41. As Ebenezer, I want the app to start by itself at login, so that it is there when I open it.
@@ -120,7 +133,13 @@ Rollout in three phases:
 
 **Configuration is one value:** the path to the Akutu_2 folder, from an environment variable. Language comes from config.yaml in that folder.
 
-**Template trimming.** Keep the template's shell (sidebar, theme, layout) and the pages that map to the six views: Default (Today), Calendar, Tasks (Tasks and Inbox), CRM or Kanban (Projects & Notes), Infrastructure (Workspace), Academy (Start Here). Delete the other demo pages and their demo data.
+**Template trimming.** Keep the template's shell (sidebar, theme, layout) and the pages that map to the first six views: Default (Today), Calendar, Tasks (Tasks and Inbox), CRM or Kanban (Projects & Notes), Infrastructure (Workspace), Academy (Start Here). Delete the other demo pages and their demo data. The seventh view, Progress, has no template page; it is built new from the template's old chart components, through the template's chart wrapper.
+
+**The Progress view and Rule 10 (10 Oct 2026).** Overdue and done counts are facts computed from dates and from the done log, not a ranking: they say what is, and nothing in the view says what to do first. So the Progress view may show them, in the cards and the charts, and Rule 10 and Stories 14 and 15 still hold: no top 3, no focus widget, no judging words, no ordering of projects or tasks that implies priority. Story 15 stays as written for the other views; the Progress view's cards follow the same principle, numbers that describe.
+
+**The done log and the Type field (10 Oct 2026).** The reader gains the done log: it reads `context/DONE.md`, an append-only file of lines starting with `- `, newest last. Two shapes are understood: `- YYYY-MM-DD · <project> · <task headline> #<category>` (the category is optional) is a completed task, and `- YYYY-MM-DD · open N` is the open-task count at the close of a day, written once per `/eod`. That second shape is the open-count series, so no new writer is needed. The header prose above the entries is not data and is never flagged. A line starting with `- ` that matches neither shape goes to "not understood" (source DONE.md). A missing or empty DONE.md gives an empty log, not an error; an unreadable or offloaded one is reported as unreadable like any source. The reader also reads `**Type:** work | personal` from each project block. An absent field is no type; any other value is no type and is listed as "not understood". Work and Personal filter on explicit values only. Done history begins when DONE.md begins; there is no backfill.
+
+**Progress numbers, as defined.** Weeks are calendar weeks starting Monday, in local time; "done this week" is the current one. Each open task is in exactly one bucket, first match wins: overdue (due before today), due in 7 days (today to today plus 7, inclusive), waiting (waiting-on set), later (due beyond 7 days), no date. The buckets add up to Open. Urgent is the first two buckets together. Behind is the overdue count plus the age of the oldest overdue task in days.
 
 **Read-only, enforced.** The app never writes to the workspace. No checkboxes, no forms, no buttons that change state. A second writer on STATUS.md would collide with Claude's edits (workspace Safeguard 11), and the dashboard is a view by rule (workspace Rule 8).
 One kind of action is allowed because it changes nothing (10 Oct 2026): `vscode://` deep links that open a task's repo in VS Code and prefill, but do not send, a Claude Code prompt. The browser hands the link to VS Code; the server starts no process, and repo paths come only from `config.yaml` and the project READMEs, never from the browser.
@@ -146,6 +165,8 @@ One kind of action is allowed because it changes nothing (10 Oct 2026): `vscode:
 **Fixture folders, not mocks.** Each test case is a small folder with real-shaped files:
 - a full workspace copied from the real formats (tasks with every suffix, `general` group, Recently Done, project blocks with and without blocker, inbox items with mail links);
 - an empty workspace (files exist, no tasks, no inbox, no projects);
+- the done log: no DONE.md, an empty one, header prose only, both line shapes, and malformed lines (invented project names only, since the repo is public);
+- project blocks with a `**Type:**` of work, personal, absent and invalid;
 - no mail cache at all;
 - a mail cache from three days ago;
 - malformed lines inside known sections (must land in "not understood", never vanish);
@@ -163,14 +184,15 @@ One kind of action is allowed because it changes nothing (10 Oct 2026): `vscode:
 
 ## Out of Scope
 
-- Any write from the dashboard: ticking off tasks, adopting inbox items, editing projects. All of that stays in the chat.
+- Any write from the dashboard: ticking off tasks, adopting inbox items, editing projects. All of that stays in the chat. The Progress view reads DONE.md and never writes it.
 - Deploying the app anywhere, or opening it to other devices or people.
-- Changing the format of STATUS.md, PROJECTS.md, JOURNAL.md or config.yaml.
+- Changing the format of STATUS.md, PROJECTS.md, JOURNAL.md or config.yaml, apart from the optional `**Type:**` field on PROJECTS.md blocks that the Progress view reads.
 - Changing `/morning` in phases 1 and 2. Restructuring the mail cache into structured fields.
 - Fetching mail or calendar from the app. Mail and calendar state come only from the morning cache.
 - Showing archived projects, or HR, salary or performance information. None of that is in the source files the dashboard reads, and it stays that way.
 - Making the app part of the shareable workspace package. This is Ebenezer's machine only.
 - Retiring the old dashboard before Ebenezer makes the switch decision.
+- On the Progress view: a backfill of done history from before DONE.md existed, personal finance figures (bank statements never enter this app), and any ranking of projects or tasks.
 
 ## Further Notes
 

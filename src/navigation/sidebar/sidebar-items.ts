@@ -1,4 +1,14 @@
-import { CalendarDays, Compass, FolderKanban, Inbox, ListTodo, type LucideIcon, Sun, Wrench } from "lucide-react";
+import {
+  CalendarDays,
+  ChartColumn,
+  Compass,
+  FolderKanban,
+  Inbox,
+  ListTodo,
+  type LucideIcon,
+  Sun,
+  Wrench,
+} from "lucide-react";
 
 export type NavBadge = "new" | "soon";
 
@@ -38,7 +48,7 @@ export interface NavGroup {
   items: NavMainItem[];
 }
 
-// The six views.
+// The seven views.
 export const sidebarItems: NavGroup[] = [
   {
     id: 1,
@@ -48,6 +58,7 @@ export const sidebarItems: NavGroup[] = [
       { id: "tasks", title: "Tasks", url: "/dashboard/tasks", icon: ListTodo },
       { id: "inbox", title: "Inbox", url: "/dashboard/inbox", icon: Inbox },
       { id: "projects", title: "Projects", url: "/dashboard/projects", icon: FolderKanban },
+      { id: "progress", title: "Progress", url: "/dashboard/progress", icon: ChartColumn },
       { id: "workspace", title: "Workspace", url: "/dashboard/workspace", icon: Wrench },
       { id: "start-here", title: "Start Here", url: "/dashboard/start-here", icon: Compass },
     ],
