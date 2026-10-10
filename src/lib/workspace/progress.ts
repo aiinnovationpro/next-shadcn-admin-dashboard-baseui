@@ -7,6 +7,9 @@ import type { DoneLog, Project, Task } from "./reader.ts";
 // Overdue, due within 7 days (today included), waiting, due later, no date. A task is counted once, in the first match.
 export type Bucket = "overdue" | "soon" | "waiting" | "later" | "none";
 
+// The one order the bar stack and the legend both follow, first to last.
+export const BUCKETS = ["overdue", "soon", "waiting", "later", "none"] as const satisfies readonly Bucket[];
+
 export const MAX_WEEKS = 12;
 
 export const todayIso = (now: Date = new Date()) =>

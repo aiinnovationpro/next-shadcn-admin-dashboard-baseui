@@ -10,21 +10,47 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import type { ProjectBar } from "@/lib/workspace/progress";
+import { BUCKETS, type ProjectBar } from "@/lib/workspace/progress";
 
+// Overdue (destructive) and due in 7 days (amber) keep their meaning. The other three are green, violet and neutral grey,
+// so no two series share a hue. Amber is chart-3 in light and chart-2 in dark, hence the per-theme colours.
 const chartConfig = {
   overdue: { label: "Overdue", color: "var(--destructive)" },
-  soon: { label: "Due in 7 days", color: "var(--chart-3)" },
-  waiting: { label: "Waiting", color: "var(--chart-1)" },
-  later: { label: "Due later", color: "var(--chart-2)" },
+  soon: { label: "Due in 7 days", theme: { light: "var(--chart-3)", dark: "var(--chart-2)" } },
+  waiting: { label: "Waiting", theme: { light: "var(--chart-4)", dark: "var(--chart-3)" } },
+  later: { label: "Due later", theme: { light: "var(--color-violet-600)", dark: "var(--color-violet-400)" } },
   none: { label: "No date", color: "var(--chart-5)" },
 } satisfies ChartConfig;
 
-const BUCKETS = ["overdue", "soon", "waiting", "later", "none"] as const;
-const ROW_HEIGHT = 34;
-const MAX_LABEL = 20; // characters shown on the axis; the tooltip carries the full name
+const ROW_HEIGHT = 40;
+const AXIS_WIDTH = 148;
+const MAX_LINE = 22; // characters per line before a name wraps to a second line
 
-const shorten = (name: string) => (name.length > MAX_LABEL ? `${name.slice(0, MAX_LABEL - 1)}…` : name);
+// Two lines at most: split at the space nearest the middle, so "Riverside Community Garden Project" reads as
+// "Riverside Community" over "Garden Project". Short names stay on one line.
+function wrapName(name: string): string[] {
+  if (name.length <= MAX_LINE) return [name];
+  const middle = name.length / 2;
+  const spaces = [...name.matchAll(/ /g)].map((m) => m.index);
+  if (spaces.length === 0) return [name];
+  const cut = spaces.reduce((best, i) => (Math.abs(i - middle) < Math.abs(best - middle) ? i : best));
+  return [name.slice(0, cut), name.slice(cut + 1)];
+}
+
+type TickProps = { x?: number; y?: number; payload?: { value: string } };
+
+function ProjectTick({ x = 0, y = 0, payload }: TickProps) {
+  const lines = wrapName(payload?.value ?? "");
+  return (
+    <text x={x} y={y} textAnchor="end" className="fill-muted-foreground">
+      {lines.map((line, i) => (
+        <tspan key={line} x={x} dy={i === 0 ? `${0.35 - (lines.length - 1) * 0.55}em` : "1.1em"}>
+          {line}
+        </tspan>
+      ))}
+    </text>
+  );
+}
 
 export function ProjectBars({ bars }: { bars: ProjectBar[] }) {
   return (
@@ -42,14 +68,18 @@ export function ProjectBars({ bars }: { bars: ProjectBar[] }) {
           <YAxis
             type="category"
             dataKey="project"
-            width={128}
+            width={AXIS_WIDTH}
             tickLine={false}
             axisLine={false}
             interval={0}
-            tickFormatter={shorten}
+            tick={<ProjectTick />}
           />
           <ChartTooltip cursor={false} content={<ChartTooltipContent labelFormatter={(name) => String(name)} />} />
-          <ChartLegend verticalAlign="top" content={<ChartLegendContent className="mb-3 justify-end" />} />
+          <ChartLegend
+            verticalAlign="top"
+            itemSorter={null}
+            content={<ChartLegendContent className="mb-3 flex-wrap justify-end gap-y-1" />}
+          />
           {BUCKETS.map((bucket) => (
             <Bar key={bucket} dataKey={bucket} stackId="open" fill={`var(--color-${bucket})`} />
           ))}
