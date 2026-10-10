@@ -1,5 +1,6 @@
 import {
   applyFilter,
+  BUCKETS,
   bucketOf,
   dayLabel,
   doneHistoryNote,
@@ -210,5 +211,16 @@ test("the note under an empty chart says only what is true: where the log starts
   assert.equal(
     doneHistoryNote(future, future, today),
     "Every done entry is dated after today (the first is Tue Oct 20).",
+  );
+});
+
+test("BUCKETS is the one stack and legend order, and names every count a bar carries", () => {
+  assert.deepEqual([...BUCKETS], ["overdue", "soon", "waiting", "later", "none"]);
+  const [bar] = projectBars([], [task()], today);
+  assert.deepEqual(
+    Object.keys(bar)
+      .filter((k) => k !== "project")
+      .sort(),
+    [...BUCKETS].sort(),
   );
 });
