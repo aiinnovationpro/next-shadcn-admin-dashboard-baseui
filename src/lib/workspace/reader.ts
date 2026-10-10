@@ -40,6 +40,7 @@ export type Project = {
   timeline: string;
   blocker: string | null;
   hasBlocker: boolean;
+  type: "work" | "personal" | null; // null: no **Type:** field, or a value other than these two
   risk: string | null;
   delta: string | null;
 };
@@ -66,6 +67,10 @@ export type Morning = {
 
 export type JournalEntry = { date: string; bullets: string[] }; // date: YYYY-MM-DD; bullets: raw markdown text
 
+export type DoneEntry = { date: string; project: string; headline: string; category: string | null }; // date: YYYY-MM-DD
+export type OpenCount = { date: string; open: number }; // the open-task count /eod wrote that day
+export type DoneLog = { done: DoneEntry[]; openCounts: OpenCount[] }; // both in file order, newest last
+
 export type Snapshot = {
   workspaceFound: boolean;
   sources: Source[];
@@ -79,6 +84,7 @@ export type Snapshot = {
   inventory: Inventory;
   morning: Morning;
   journal: JournalEntry[]; // entries from the last 14 days, newest first, at most 10
+  doneLog: DoneLog;
 };
 
 type Flag = (section: string, line: string) => void;
@@ -133,6 +139,26 @@ function parseJournal(text: string, now: Date, flag: Flag): JournalEntry[] {
   return inWindow.slice(0, JOURNAL_ENTRIES).map(({ date, bullets }) => ({ date, bullets }));
 }
 
+// Only "- " lines are entries: the file's header prose is not data. Two shapes, newest last, append-only:
+// "- YYYY-MM-DD · <project> · <headline> #<category>" (category optional) and "- YYYY-MM-DD · open N".
+export function parseDone(text: string, flag: Flag): DoneLog {
+  const log: DoneLog = { done: [], openCounts: [] };
+  for (const line of text.split("\n")) {
+    if (!line.startsWith("- ")) continue;
+    const [date, ...rest] = line.slice(2).split(" · ");
+    const open = rest.length === 1 ? rest[0].trim().match(/^open (\d+)$/) : null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) flag("(entry)", line);
+    else if (open) log.openCounts.push({ date, open: Number(open[1]) });
+    else if (rest.length >= 2) {
+      const tail = /\s#(deep-work|quick-win|comms|prep|admin)\s*$/;
+      const text = rest.slice(1).join(" · "); // a headline may hold " · " itself
+      const category = text.match(tail)?.[1] ?? null;
+      log.done.push({ date, project: rest[0].trim(), headline: text.replace(tail, "").trim(), category });
+    } else flag("(entry)", line);
+  }
+  return log;
+}
+
 const noMorning = (state: Morning["state"]): Morning => ({
   state,
   date: null,
@@ -183,6 +209,7 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
       recentlyDone: [],
       projects: [],
       journal: [],
+      doneLog: { done: [], openCounts: [] },
       notUnderstood: [],
       inventory: loadInventory(root),
       morning: noMorning("missing"),
@@ -199,6 +226,7 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
   if (mcpCache.source.state === "ok" && !mcpCacheUsable(mcpCache.text)) {
     mcpCache.source = { name: mcpCache.source.name, state: "unreadable", ageMinutes: null };
   }
+  const doneFile = readSource(root, "DONE.md", now);
   const status = statusFile.text;
   const notUnderstood: NotUnderstood[] = [];
   const flag: Flag = (section, line) => notUnderstood.push({ source: "STATUS.md", section, line });
@@ -222,6 +250,7 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
       journalFile.source,
       configFile.source,
       mcpCache.source,
+      doneFile.source,
     ],
     projects: parseProjects(projectsFile.text, notUnderstood),
     currentFocus: sectionBody(status, "Current Focus").join("\n\n"),
@@ -232,6 +261,7 @@ export function readWorkspace(root: string, now: Date = new Date()): Snapshot {
     journal: parseJournal(journalFile.text, now, (section, line) =>
       notUnderstood.push({ source: "JOURNAL.md", section, line }),
     ),
+    doneLog: parseDone(doneFile.text, (section, line) => notUnderstood.push({ source: "DONE.md", section, line })),
     notUnderstood,
     inventory: loadInventory(root),
     morning,
@@ -243,6 +273,7 @@ const STALE_MARK = /⚠️?\s*/;
 
 const PROJECT_FIELDS: Record<string, string> = {
   Purpose: "purpose",
+  Type: "type",
   Status: "status",
   Phase: "phase",
   Stakeholder: "stakeholder",
@@ -251,6 +282,8 @@ const PROJECT_FIELDS: Record<string, string> = {
   Risk: "risk",
   Delta: "delta",
 };
+
+const PROJECT_TYPES = ["work", "personal"];
 
 // Level-two headings are project blocks, except "History" (finished work). Fields are "**Key:** value" lines.
 function parseProjects(text: string, notUnderstood: NotUnderstood[]): Project[] {
@@ -269,6 +302,9 @@ function parseProjects(text: string, notUnderstood: NotUnderstood[]): Project[] 
     const field = t.match(/^\*\*([A-Za-z]+):\*\*\s*(.*)$/);
     if (field && field[1] in PROJECT_FIELDS) {
       current.fields[PROJECT_FIELDS[field[1]]] = field[2].trim();
+      if (field[1] === "Type" && !PROJECT_TYPES.includes(field[2].trim())) {
+        notUnderstood.push({ source: "PROJECTS.md", section: current.name, line: t });
+      }
     } else {
       notUnderstood.push({ source: "PROJECTS.md", section: current.name, line });
     }
@@ -287,6 +323,7 @@ function parseProjects(text: string, notUnderstood: NotUnderstood[]): Project[] 
       timeline: f.timeline ?? "",
       blocker: f.blocker ?? null,
       hasBlocker: Boolean(f.blocker) && !/^(none|no blocker|n\/a)\b/i.test(f.blocker),
+      type: f.type === "work" || f.type === "personal" ? f.type : null,
       risk: f.risk ?? null,
       delta: f.delta ?? null,
     };
