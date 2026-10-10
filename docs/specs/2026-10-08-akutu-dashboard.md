@@ -123,6 +123,7 @@ Rollout in three phases:
 **Template trimming.** Keep the template's shell (sidebar, theme, layout) and the pages that map to the six views: Default (Today), Calendar, Tasks (Tasks and Inbox), CRM or Kanban (Projects & Notes), Infrastructure (Workspace), Academy (Start Here). Delete the other demo pages and their demo data.
 
 **Read-only, enforced.** The app never writes to the workspace. No checkboxes, no forms, no buttons that change state. A second writer on STATUS.md would collide with Claude's edits (workspace Safeguard 11), and the dashboard is a view by rule (workspace Rule 8).
+One kind of action is allowed because it changes nothing (10 Oct 2026): `vscode://` deep links that open a task's repo in VS Code and prefill, but do not send, a Claude Code prompt. The browser hands the link to VS Code; the server starts no process, and repo paths come only from `config.yaml` and the project READMEs, never from the browser.
 
 **Runs locally, bound to localhost only**, as a production build, started at login by a macOS launch agent. It is never deployed.
 
