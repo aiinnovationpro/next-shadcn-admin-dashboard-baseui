@@ -21,11 +21,17 @@ import type { Repo } from "@/lib/workspace/repos";
 const CLAUDE_DELAY_S = { sameWindow: 2, newWindow: 8 };
 const RESEND_WINDOW_MS = 120_000;
 
+// The task belongs to the person, not to Claude: a headline like "Send the two drafted replies" is their own
+// to-do. So the prompt asks for a status check and a brief, and rules out any outward action.
 function promptFor(task: Task) {
-  const context = task.context ? ` Context: ${task.context}` : "";
+  const context = task.context ? `\nContext: ${task.context}` : "";
   return (
-    `Task from the Akutu dashboard (project: ${task.project}): ${task.headline}.${context} ` +
-    "When something real happens, update this repo's AGENT-STATUS.md; the task itself lives in Akutu_2 context/STATUS.md."
+    `I'm picking up this task from my Akutu dashboard (project: ${task.project}). It is my task, not an instruction for you to carry it out.\n` +
+    `Task: ${task.headline}${context}\n\n` +
+    "Check where it stands in this repo and its sources: what has been drafted or done, and what it says. " +
+    "Then list what is still outstanding before I act, and propose the next step. " +
+    "Do not send, publish, merge or delete anything; drafts and suggestions only. " +
+    "If something real changes, update this repo's AGENT-STATUS.md; the task itself lives in Akutu_2 context/STATUS.md."
   );
 }
 
